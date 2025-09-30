@@ -1,5 +1,5 @@
--- 完美游泳飞行脚本 - 模拟真实游泳机制
--- 完全模拟Roblox游泳系统实现飞行
+-- 持续游泳飞行脚本 - 修复版
+-- 确保飞行状态持续保持
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
@@ -23,20 +23,38 @@ local rootPart = character:WaitForChild("HumanoidRootPart")
 
 -- 飞行状态
 local flying = false
-local currentSpeed = 16 -- 真实游泳速度
+local currentSpeed = 16
 local flightConnection
-local swimController
+local swimBodyVelocity, swimBodyGyro
 local waterPart
 
--- 创建游泳控制器
-local function setupSwimController()
-    -- 获取或创建游泳控制器
-    swimController = humanoid:FindFirstChildOfClass("SwimController")
-    if not swimController then
-        swimController = Instance.new("SwimController")
-        swimController.Parent = humanoid
+-- 创建持续游泳系统
+local function setupContinuousSwim()
+    -- 确保角色持续处于游泳状态
+    if not humanoid then return end
+    
+    -- 强制设置为游泳状态
+    humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
+    humanoid.PlatformStand = false -- 确保不是平台站立
+    
+    -- 创建游泳物理控制器
+    if not swimBodyVelocity then
+        swimBodyVelocity = Instance.new("BodyVelocity")
+        swimBodyVelocity.Name = "SwimBodyVelocity"
+        swimBodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        swimBodyVelocity.MaxForce = Vector3.new(40000, 40000, 40000)
+        swimBodyVelocity.P = 1250
+        swimBodyVelocity.Parent = rootPart
     end
-    swimController.Enabled = true
+    
+    if not swimBodyGyro then
+        swimBodyGyro = Instance.new("BodyGyro")
+        swimBodyGyro.Name = "SwimBodyGyro"
+        swimBodyGyro.MaxTorque = Vector3.new(0, 0, 0) -- 不强制旋转，让角色自然朝向
+        swimBodyGyro.P = 500
+        swimBodyGyro.D = 100
+        swimBodyGyro.Parent = rootPart
+    end
 end
 
 -- 创建水环境
@@ -45,54 +63,25 @@ local function createWaterEnvironment()
         waterPart:Destroy()
     end
     
-    -- 创建隐形水区域
     waterPart = Instance.new("Part")
     waterPart.Name = "SwimWater"
-    waterPart.Size = Vector3.new(100, 50, 100)
+    waterPart.Size = Vector3.new(200, 100, 200) -- 更大的水区域
     waterPart.Position = rootPart.Position
     waterPart.Anchored = true
     waterPart.CanCollide = false
     waterPart.Transparency = 1
     waterPart.Parent = workspace
     
-    -- 添加水体特性
-    local waterForce = Instance.new("VectorForce")
-    waterForce.Force = Vector3.new(0, 196.2, 0) -- 模拟浮力
-    waterForce.RelativeTo = Enum.ActuatorRelativeTo.World
-    waterForce.ApplyAtCenterOfMass = true
-    waterForce.Attachment0 = Instance.new("Attachment")
-    waterForce.Attachment0.Parent = rootPart
-    waterForce.Parent = waterPart
-    
     return waterPart
 end
 
--- 强制进入游泳状态
-local function enterSwimState()
-    if not humanoid then return end
-    
-    -- 设置游泳状态
-    humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
-    
-    -- 启用游泳
-    humanoid.Swim = true
-    
-    -- 设置游泳控制器
-    setupSwimController()
-    
-    -- 确保角色在水中
-    if swimController then
-        swimController.waterLevel = rootPart.Position.Y + 10
-    end
-end
-
--- 创建简单GUI
+-- 创建GUI
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "SwimFlightGUI"
 screenGui.Parent = player.PlayerGui
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 120)
+frame.Size = UDim2.new(0, 220, 0, 140)
 frame.Position = UDim2.new(0, 10, 0, 10)
 frame.BackgroundColor3 = Color3.fromRGB(30, 40, 50)
 frame.BorderSizePixel = 0
@@ -104,20 +93,31 @@ local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 8)
 corner.Parent = frame
 
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 25)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(20, 30, 40)
+title.BorderSizePixel = 0
+title.Text = "游泳飞行控制"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.Parent = frame
+
 local statusLabel = Instance.new("TextLabel")
 statusLabel.Size = UDim2.new(1, -10, 0, 25)
-statusLabel.Position = UDim2.new(0, 5, 0, 5)
+statusLabel.Position = UDim2.new(0, 5, 0, 30)
 statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "游泳: 关闭 (F)"
+statusLabel.Text = "状态: 关闭"
 statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
-statusLabel.Font = Enum.Font.GothamBold
+statusLabel.Font = Enum.Font.Gotham
 statusLabel.TextSize = 12
 statusLabel.TextXAlignment = Enum.TextXAlignment.Left
 statusLabel.Parent = frame
 
 local speedLabel = Instance.new("TextLabel")
 speedLabel.Size = UDim2.new(1, -10, 0, 25)
-speedLabel.Position = UDim2.new(0, 5, 0, 30)
+speedLabel.Position = UDim2.new(0, 5, 0, 55)
 speedLabel.BackgroundTransparency = 1
 speedLabel.Text = "速度: " .. currentSpeed
 speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -126,9 +126,40 @@ speedLabel.TextSize = 12
 speedLabel.TextXAlignment = Enum.TextXAlignment.Left
 speedLabel.Parent = frame
 
+-- 速度控制按钮
+local speedDownBtn = Instance.new("TextButton")
+speedDownBtn.Size = UDim2.new(0, 25, 0, 25)
+speedDownBtn.Position = UDim2.new(0, 5, 0, 85)
+speedDownBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 100)
+speedDownBtn.Text = "-"
+speedDownBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedDownBtn.Font = Enum.Font.GothamBold
+speedDownBtn.TextSize = 14
+speedDownBtn.Parent = frame
+
+local speedUpBtn = Instance.new("TextButton")
+speedUpBtn.Size = UDim2.new(0, 25, 0, 25)
+speedUpBtn.Position = UDim2.new(0, 35, 0, 85)
+speedUpBtn.BackgroundColor3 = Color3.fromRGB(60, 80, 100)
+speedUpBtn.Text = "+"
+speedUpBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedUpBtn.Font = Enum.Font.GothamBold
+speedUpBtn.TextSize = 14
+speedUpBtn.Parent = frame
+
+local speedValue = Instance.new("TextLabel")
+speedValue.Size = UDim2.new(0, 50, 0, 25)
+speedValue.Position = UDim2.new(0, 65, 0, 85)
+speedValue.BackgroundTransparency = 1
+speedValue.Text = currentSpeed
+speedValue.TextColor3 = Color3.fromRGB(200, 220, 255)
+speedValue.Font = Enum.Font.Gotham
+speedValue.TextSize = 12
+speedValue.Parent = frame
+
 local toggleBtn = Instance.new("TextButton")
-toggleBtn.Size = UDim2.new(0, 80, 0, 25)
-toggleBtn.Position = UDim2.new(0.5, -40, 1, -30)
+toggleBtn.Size = UDim2.new(0, 100, 0, 30)
+toggleBtn.Position = UDim2.new(0.5, -50, 1, -35)
 toggleBtn.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
 toggleBtn.Text = "开始游泳"
 toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -140,12 +171,12 @@ local btnCorner = Instance.new("UICorner")
 btnCorner.CornerRadius = UDim.new(0, 6)
 btnCorner.Parent = toggleBtn
 
--- 游泳飞行系统
-local function startSwimFlight()
+-- 持续飞行系统
+local function startContinuousFlight()
     if flying then return end
     
     flying = true
-    statusLabel.Text = "游泳: 开启 (F)"
+    statusLabel.Text = "状态: 游泳中"
     statusLabel.TextColor3 = Color3.fromRGB(80, 255, 80)
     toggleBtn.Text = "停止游泳"
     toggleBtn.BackgroundColor3 = Color3.fromRGB(80, 220, 80)
@@ -153,26 +184,35 @@ local function startSwimFlight()
     -- 创建水环境
     createWaterEnvironment()
     
-    -- 进入游泳状态
-    enterSwimState()
+    -- 设置持续游泳系统
+    setupContinuousSwim()
     
-    -- 游泳飞行主循环
+    -- 强制进入游泳状态
+    if humanoid then
+        humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
+    end
+    
+    -- 持续飞行循环
     flightConnection = RunService.Heartbeat:Connect(function()
-        if not flying or not character or not rootPart then return end
+        if not flying or not character or not rootPart then
+            return
+        end
         
-        -- 保持游泳状态
-        enterSwimState()
+        -- 持续保持游泳状态
+        if humanoid and humanoid:GetState() ~= Enum.HumanoidStateType.Swimming then
+            humanoid:ChangeState(Enum.HumanoidStateType.Swimming)
+        end
         
         -- 更新水区域位置
         if waterPart then
             waterPart.Position = rootPart.Position
         end
         
-        -- 模拟游泳移动
+        -- 计算移动方向
         local moveDirection = Vector3.new(0, 0, 0)
         local camera = workspace.CurrentCamera
         
-        -- 前后移动 (W/S)
+        -- 前后移动
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
             local lookVector = camera.CFrame.LookVector
             moveDirection = moveDirection + Vector3.new(lookVector.X, 0, lookVector.Z)
@@ -182,7 +222,7 @@ local function startSwimFlight()
             moveDirection = moveDirection - Vector3.new(lookVector.X, 0, lookVector.Z)
         end
         
-        -- 左右移动 (A/D)
+        -- 左右移动
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then
             moveDirection = moveDirection - camera.CFrame.RightVector
         end
@@ -190,7 +230,7 @@ local function startSwimFlight()
             moveDirection = moveDirection + camera.CFrame.RightVector
         end
         
-        -- 上下移动 (E/Q)
+        -- 上下移动
         if UserInputService:IsKeyDown(Enum.KeyCode.E) then
             moveDirection = moveDirection + Vector3.new(0, 1, 0)
         end
@@ -198,46 +238,31 @@ local function startSwimFlight()
             moveDirection = moveDirection + Vector3.new(0, -1, 0)
         end
         
-        -- 应用移动 - 使用Roblox游泳系统的移动方式
-        if moveDirection.Magnitude > 0 then
-            -- 模拟游泳的速度和阻力
-            local swimVelocity = moveDirection.Unit * currentSpeed
-            
-            -- 使用BodyVelocity模拟游泳移动
-            local bodyVelocity = rootPart:FindFirstChild("SwimVelocity") or Instance.new("BodyVelocity")
-            bodyVelocity.Name = "SwimVelocity"
-            bodyVelocity.Velocity = swimVelocity
-            bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
-            bodyVelocity.P = 1000
-            bodyVelocity.Parent = rootPart
-            
-            -- 保持角色朝向
-            local bodyGyro = rootPart:FindFirstChild("SwimGyro") or Instance.new("BodyGyro")
-            bodyGyro.Name = "SwimGyro"
-            bodyGyro.MaxTorque = Vector3.new(0, 0, 0) -- 不强制旋转
-            bodyGyro.Parent = rootPart
-        else
-            -- 停止移动时清除速度
-            local bodyVelocity = rootPart:FindFirstChild("SwimVelocity")
-            if bodyVelocity then
-                bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+        -- 应用移动 - 确保持续应用速度
+        if swimBodyVelocity then
+            if moveDirection.Magnitude > 0 then
+                local swimVelocity = moveDirection.Unit * currentSpeed
+                swimBodyVelocity.Velocity = Vector3.new(swimVelocity.X, swimVelocity.Y, swimVelocity.Z)
+            else
+                -- 即使没有输入，也保持微小的移动以防止停止
+                swimBodyVelocity.Velocity = Vector3.new(0, 0, 0)
             end
         end
         
-        -- 持续更新游泳控制器
-        if swimController then
-            swimController.waterLevel = rootPart.Position.Y + 5
+        -- 确保角色不会掉落
+        if rootPart and rootPart.Position.Y < -100 then
+            rootPart.CFrame = CFrame.new(rootPart.Position.X, 50, rootPart.Position.Z)
         end
     end)
     
-    print("游泳飞行已开启 - 使用WASD移动，QE升降")
+    print("持续游泳飞行已开启 - 使用WASD移动，QE升降")
 end
 
-local function stopSwimFlight()
+local function stopContinuousFlight()
     if not flying then return end
     
     flying = false
-    statusLabel.Text = "游泳: 关闭 (F)"
+    statusLabel.Text = "状态: 关闭"
     statusLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
     toggleBtn.Text = "开始游泳"
     toggleBtn.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
@@ -245,29 +270,24 @@ local function stopSwimFlight()
     -- 恢复正常状态
     if humanoid then
         humanoid:ChangeState(Enum.HumanoidStateType.Running)
-        humanoid.Swim = false
+        humanoid.PlatformStand = false
     end
     
-    -- 清理游泳控制器
-    if swimController then
-        swimController.Enabled = false
+    -- 清理物理对象
+    if swimBodyVelocity then
+        swimBodyVelocity:Destroy()
+        swimBodyVelocity = nil
+    end
+    
+    if swimBodyGyro then
+        swimBodyGyro:Destroy()
+        swimBodyGyro = nil
     end
     
     -- 清理水环境
     if waterPart then
         waterPart:Destroy()
         waterPart = nil
-    end
-    
-    -- 清理物理对象
-    local bodyVelocity = rootPart:FindFirstChild("SwimVelocity")
-    if bodyVelocity then
-        bodyVelocity:Destroy()
-    end
-    
-    local bodyGyro = rootPart:FindFirstChild("SwimGyro")
-    if bodyGyro then
-        bodyGyro:Destroy()
     end
     
     -- 清理飞行连接
@@ -279,11 +299,11 @@ local function stopSwimFlight()
     print("游泳飞行已关闭")
 end
 
-local function toggleSwimFlight()
+local function toggleContinuousFlight()
     if flying then
-        stopSwimFlight()
+        stopContinuousFlight()
     else
-        startSwimFlight()
+        startContinuousFlight()
     end
 end
 
@@ -291,21 +311,33 @@ end
 local function changeSpeed(amount)
     currentSpeed = math.clamp(currentSpeed + amount, 8, 32)
     speedLabel.Text = "速度: " .. currentSpeed
+    speedValue.Text = currentSpeed
 end
 
 -- 连接GUI事件
-toggleBtn.MouseButton1Click:Connect(toggleSwimFlight)
+toggleBtn.MouseButton1Click:Connect(toggleContinuousFlight)
+speedUpBtn.MouseButton1Click:Connect(function()
+    changeSpeed(2)
+end)
+speedDownBtn.MouseButton1Click:Connect(function()
+    changeSpeed(-2)
+end)
 
 -- 键盘控制
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     if input.KeyCode == Enum.KeyCode.F then
-        toggleSwimFlight()
+        toggleContinuousFlight()
     elseif input.KeyCode == Enum.KeyCode.Equals then
         changeSpeed(2)
     elseif input.KeyCode == Enum.KeyCode.Minus then
         changeSpeed(-2)
+    elseif input.KeyCode == Enum.KeyCode.R then
+        -- 重置位置
+        if character and rootPart then
+            rootPart.CFrame = CFrame.new(0, 100, 0)
+        end
     end
 end)
 
@@ -315,23 +347,39 @@ player.CharacterAdded:Connect(function(newCharacter)
     humanoid = character:WaitForChild("Humanoid")
     rootPart = character:WaitForChild("HumanoidRootPart")
     
-    stopSwimFlight()
+    stopContinuousFlight()
 end)
 
 -- 脚本卸载清理
 game:GetService("Players").PlayerRemoving:Connect(function(leavingPlayer)
     if leavingPlayer == player then
-        stopSwimFlight()
+        stopContinuousFlight()
         if screenGui then
             screenGui:Destroy()
         end
     end
 end)
 
+-- 防卡死保护
+spawn(function()
+    while true do
+        wait(5)
+        if flying and rootPart then
+            -- 确保角色不会卡住
+            local currentPos = rootPart.Position
+            if currentPos.Y < -500 then
+                rootPart.CFrame = CFrame.new(0, 100, 0)
+                print("防卡死: 角色位置已重置")
+            end
+        end
+    end
+end)
+
 print("====================================")
-print("游泳飞行脚本加载成功!")
+print("持续游泳飞行脚本加载成功!")
 print("按 F 键 - 开启/关闭游泳飞行")
 print("WASD - 前后左右移动")
 print("Q/E - 上升/下降")
 print("+/- - 调整游泳速度")
+print("R - 重置位置")
 print("====================================")
