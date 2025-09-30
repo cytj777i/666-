@@ -1,5 +1,5 @@
--- 直接飞行脚本 - 无防检测优化
--- 专注于飞行功能，不考虑反作弊检测
+-- 妈的一坨屎 还不行就放弃了
+-- 确保可以前后左右上下移动
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
@@ -29,11 +29,11 @@ local bodyVelocity, bodyGyro
 
 -- 创建GUI
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "DirectFlightGUI"
+screenGui.Name = "FlightGUI"
 screenGui.Parent = player.PlayerGui
 
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 200, 0, 120)
+frame.Size = UDim2.new(0, 220, 0, 150)
 frame.Position = UDim2.new(0, 10, 0, 10)
 frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 frame.BorderSizePixel = 0
@@ -81,8 +81,20 @@ local btnCorner = Instance.new("UICorner")
 btnCorner.CornerRadius = UDim.new(0, 6)
 btnCorner.Parent = toggleBtn
 
--- 直接飞行系统
-local function startDirectFlight()
+-- 热键提示
+local hotkeyLabel = Instance.new("TextLabel")
+hotkeyLabel.Size = UDim2.new(1, -10, 0, 40)
+hotkeyLabel.Position = UDim2.new(0, 5, 0, 60)
+hotkeyLabel.BackgroundTransparency = 1
+hotkeyLabel.Text = "WASD - 前后左右移动\nQ/E - 上升/下降\n空格 - 快速上升"
+hotkeyLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+hotkeyLabel.Font = Enum.Font.Gotham
+hotkeyLabel.TextSize = 10
+hotkeyLabel.TextXAlignment = Enum.TextXAlignment.Left
+hotkeyLabel.Parent = frame
+
+-- 飞行系统
+local function startFlight()
     if flying then return end
     
     flying = true
@@ -105,29 +117,33 @@ local function startDirectFlight()
     bodyGyro.CFrame = rootPart.CFrame
     bodyGyro.Parent = rootPart
     
-    -- 设置平台站立，完全控制角色
+    -- 设置平台站立
     humanoid.PlatformStand = true
     
     -- 飞行主循环
     flightConnection = RunService.Heartbeat:Connect(function()
         if not flying or not bodyVelocity or not bodyGyro then return end
         
+        -- 获取相机
+        local camera = workspace.CurrentCamera
+        
         -- 更新朝向跟随相机
-        bodyGyro.CFrame = workspace.CurrentCamera.CFrame
+        bodyGyro.CFrame = CFrame.new(rootPart.Position, rootPart.Position + camera.CFrame.LookVector)
         
         -- 计算移动方向
         local moveDirection = Vector3.new(0, 0, 0)
-        local camera = workspace.CurrentCamera
         
-        -- 前后移动
+        -- 前后移动 (基于相机方向)
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            moveDirection = moveDirection + camera.CFrame.LookVector
+            local lookVector = camera.CFrame.LookVector
+            moveDirection = moveDirection + Vector3.new(lookVector.X, 0, lookVector.Z).Unit
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            moveDirection = moveDirection - camera.CFrame.LookVector
+            local lookVector = camera.CFrame.LookVector
+            moveDirection = moveDirection - Vector3.new(lookVector.X, 0, lookVector.Z).Unit
         end
         
-        -- 左右移动
+        -- 左右移动 (基于相机方向)
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then
             moveDirection = moveDirection - camera.CFrame.RightVector
         end
@@ -136,7 +152,7 @@ local function startDirectFlight()
         end
         
         -- 上下移动
-        if UserInputService:IsKeyDown(Enum.KeyCode.E) then
+        if UserInputService:IsKeyDown(Enum.KeyCode.E) or UserInputService:IsKeyDown(Enum.KeyCode.Space) then
             moveDirection = moveDirection + Vector3.new(0, 1, 0)
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.Q) then
@@ -152,10 +168,10 @@ local function startDirectFlight()
         end
     end)
     
-    print("直接飞行已开启 - 使用WASD移动，QE升降")
+    print("飞行已开启 - 可以前后左右上下移动")
 end
 
-local function stopDirectFlight()
+local function stopFlight()
     if not flying then return end
     
     flying = false
@@ -187,11 +203,11 @@ local function stopDirectFlight()
     print("飞行已关闭")
 end
 
-local function toggleDirectFlight()
+local function toggleFlight()
     if flying then
-        stopDirectFlight()
+        stopFlight()
     else
-        startDirectFlight()
+        startFlight()
     end
 end
 
@@ -202,14 +218,14 @@ local function changeSpeed(amount)
 end
 
 -- 连接GUI事件
-toggleBtn.MouseButton1Click:Connect(toggleDirectFlight)
+toggleBtn.MouseButton1Click:Connect(toggleFlight)
 
 -- 键盘控制
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     
     if input.KeyCode == Enum.KeyCode.F then
-        toggleDirectFlight()
+        toggleFlight()
     elseif input.KeyCode == Enum.KeyCode.Equals then
         changeSpeed(10)
     elseif input.KeyCode == Enum.KeyCode.Minus then
@@ -228,24 +244,36 @@ player.CharacterAdded:Connect(function(newCharacter)
     humanoid = character:WaitForChild("Humanoid")
     rootPart = character:WaitForChild("HumanoidRootPart")
     
-    stopDirectFlight()
+    stopFlight()
 end)
 
 -- 脚本卸载清理
 game:GetService("Players").PlayerRemoving:Connect(function(leavingPlayer)
     if leavingPlayer == player then
-        stopDirectFlight()
+        stopFlight()
         if screenGui then
             screenGui:Destroy()
         end
     end
 end)
 
+-- 防卡死保护
+spawn(function()
+    while true do
+        wait(5)
+        if flying and rootPart and rootPart.Position.Y < -500 then
+            rootPart.CFrame = CFrame.new(0, 100, 0)
+        end
+    end
+end)
+
 print("====================================")
-print("直接飞行脚本加载成功!")
+print("完美飞行脚本加载成功!")
 print("按 F 键 - 开启/关闭飞行")
-print("WASD - 前后左右移动")
-print("Q/E - 上升/下降")
+print("W/S - 前/后移动")
+print("A/D - 左/右移动") 
+print("E/空格 - 上升")
+print("Q - 下降")
 print("+/- - 调整飞行速度")
 print("R - 重置位置")
 print("====================================")
