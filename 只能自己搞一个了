@@ -1,5 +1,5 @@
--- Roblox飞行脚本 - 完全重写版
--- 使用新的飞行实现方法
+-- 飞行脚本，妈的死AI这么难训
+-- 使用改进的飞行控制方法
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
@@ -8,7 +8,6 @@ end
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
 
 local player = Players.LocalPlayer
 if not player then
@@ -31,7 +30,7 @@ local flightConnection
 
 -- 创建简单GUI
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "SimpleFlightGUI"
+screenGui.Name = "FlightGUI"
 screenGui.Parent = player.PlayerGui
 
 local frame = Instance.new("Frame")
@@ -52,7 +51,7 @@ title.Size = UDim2.new(1, 0, 0, 30)
 title.Position = UDim2.new(0, 0, 0, 0)
 title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 title.BorderSizePixel = 0
-title.Text = "飞行控制 v4.0"
+title.Text = "飞行控制 v4.1"
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
 title.Font = Enum.Font.GothamBold
 title.TextSize = 14
@@ -94,7 +93,21 @@ local btnCorner = Instance.new("UICorner")
 btnCorner.CornerRadius = UDim.new(0, 6)
 btnCorner.Parent = toggleBtn
 
--- 新的飞行系统 - 使用CFrame直接控制位置
+-- 禁用游泳动画
+local function disableSwimAnimation()
+    if humanoid then
+        -- 设置角色为平台站立模式，禁用所有动画
+        humanoid.PlatformStand = true
+        
+        -- 禁用游泳状态
+        if humanoid:GetState() == Enum.HumanoidStateType.Swimming then
+            humanoid:ChangeState(Enum.HumanoidStateType.Running)
+        end
+    end
+end
+
+-- 飞行控制系统 - 使用BodyVelocity方法
+local bodyVelocity
 local function startFlying()
     if flying then return end
     
@@ -104,15 +117,19 @@ local function startFlying()
     toggleBtn.Text = "关闭飞行"
     toggleBtn.BackgroundColor3 = Color3.fromRGB(100, 220, 100)
     
-    humanoid.PlatformStand = true
+    -- 禁用游泳动画
+    disableSwimAnimation()
     
-    -- 保存初始位置和速度
-    local startPosition = rootPart.Position
-    local velocity = Vector3.new(0, 0, 0)
+    -- 创建BodyVelocity用于飞行控制
+    bodyVelocity = Instance.new("BodyVelocity")
+    bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+    bodyVelocity.MaxForce = Vector3.new(40000, 40000, 40000)
+    bodyVelocity.P = 1250
+    bodyVelocity.Parent = rootPart
     
     -- 飞行主循环
-    flightConnection = RunService.Heartbeat:Connect(function(delta)
-        if not flying or not character or not rootPart then
+    flightConnection = RunService.Heartbeat:Connect(function()
+        if not flying or not character or not rootPart or not bodyVelocity then
             return
         end
         
@@ -121,12 +138,10 @@ local function startFlying()
         
         -- 获取输入方向
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            local lookVector = camera.CFrame.LookVector
-            direction = direction + Vector3.new(lookVector.X, 0, lookVector.Z).Unit
+            direction = direction + camera.CFrame.LookVector
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            local lookVector = camera.CFrame.LookVector
-            direction = direction - Vector3.new(lookVector.X, 0, lookVector.Z).Unit
+            direction = direction - camera.CFrame.LookVector
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then
             direction = direction - camera.CFrame.RightVector
@@ -143,11 +158,10 @@ local function startFlying()
         
         -- 应用移动
         if direction.Magnitude > 0 then
-            local moveDirection = direction.Unit * currentSpeed * delta * 60
-            local newPosition = rootPart.Position + moveDirection
-            
-            -- 使用CFrame直接设置位置
-            rootPart.CFrame = CFrame.new(newPosition) * CFrame.Angles(0, camera.CFrame.Y, 0)
+            local moveDirection = direction.Unit * currentSpeed
+            bodyVelocity.Velocity = Vector3.new(moveDirection.X, moveDirection.Y, moveDirection.Z)
+        else
+            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         end
     end)
 end
@@ -161,7 +175,16 @@ local function stopFlying()
     toggleBtn.Text = "开启飞行"
     toggleBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
     
-    humanoid.PlatformStand = false
+    -- 恢复角色控制
+    if humanoid then
+        humanoid.PlatformStand = false
+    end
+    
+    -- 清理飞行相关对象
+    if bodyVelocity then
+        bodyVelocity:Destroy()
+        bodyVelocity = nil
+    end
     
     if flightConnection then
         flightConnection:Disconnect()
