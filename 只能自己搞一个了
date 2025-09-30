@@ -1,5 +1,5 @@
--- Roblox飞行脚本 - 完全修复版
--- 修复了角色初始化、飞行控制和网络同步问题
+-- Roblox飞行脚本 - 完全重写版
+-- 使用新的飞行实现方法
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
@@ -9,289 +9,131 @@ local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
-local StarterGui = game:GetService("StarterGui")
 
 local player = Players.LocalPlayer
 if not player then
-    warn("无法获取本地玩家")
     return
 end
 
--- 安全初始化函数
-local function safeInitialize()
-    local character = player.Character
-    if not character then
-        character = player.CharacterAdded:Wait()
-    end
-    
-    -- 等待角色组件加载
-    local humanoid = character:WaitForChild("Humanoid")
-    local rootPart = character:WaitForChild("HumanoidRootPart")
-    
-    -- 确保角色完全加载
-    repeat
-        RunService.Heartbeat:Wait()
-    until rootPart.Position.Magnitude > 0 and humanoid.Health > 0
-    
-    return character, humanoid, rootPart
+-- 等待角色
+local character = player.Character
+if not character then
+    character = player.CharacterAdded:Wait()
 end
 
--- 飞行状态变量
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+
+-- 飞行状态
 local flying = false
 local currentSpeed = 50
-local bodyVelocity, bodyGyro
-local character, humanoid, rootPart
+local flightConnection
 
--- 初始化角色
-local success, err = pcall(function()
-    character, humanoid, rootPart = safeInitialize()
-end)
-
-if not success then
-    warn("角色初始化失败: " .. tostring(err))
-    return
-end
-
--- 创建飞行控制GUI
+-- 创建简单GUI
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "FlightControlGUI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = player:WaitForChild("PlayerGui")
+screenGui.Name = "SimpleFlightGUI"
+screenGui.Parent = player.PlayerGui
 
-local mainFrame = Instance.new("Frame")
-mainFrame.Size = UDim2.new(0, 300, 0, 200)
-mainFrame.Position = UDim2.new(0, 50, 0, 50)
-mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-mainFrame.BorderSizePixel = 0
-mainFrame.Active = true
-mainFrame.Draggable = true
-mainFrame.Parent = screenGui
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 250, 0, 120)
+frame.Position = UDim2.new(0, 10, 0, 10)
+frame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+frame.BorderSizePixel = 0
+frame.Active = true
+frame.Draggable = true
+frame.Parent = screenGui
 
--- 圆角
 local corner = Instance.new("UICorner")
 corner.CornerRadius = UDim.new(0, 8)
-corner.Parent = mainFrame
+corner.Parent = frame
 
--- 标题栏
-local titleBar = Instance.new("Frame")
-titleBar.Size = UDim2.new(1, 0, 0, 30)
-titleBar.Position = UDim2.new(0, 0, 0, 0)
-titleBar.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-titleBar.BorderSizePixel = 0
-titleBar.Parent = mainFrame
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, 0, 0, 30)
+title.Position = UDim2.new(0, 0, 0, 0)
+title.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+title.BorderSizePixel = 0
+title.Text = "飞行控制 v4.0"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.Parent = frame
 
-local titleLabel = Instance.new("TextLabel")
-titleLabel.Size = UDim2.new(1, -10, 1, 0)
-titleLabel.Position = UDim2.new(0, 10, 0, 0)
-titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "飞行控制系统 v3.0 - 稳定版"
-titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-titleLabel.TextXAlignment = Enum.TextXAlignment.Left
-titleLabel.Font = Enum.Font.GothamSemibold
-titleLabel.TextSize = 14
-titleLabel.Parent = titleBar
+local status = Instance.new("TextLabel")
+status.Size = UDim2.new(1, -20, 0, 25)
+status.Position = UDim2.new(0, 10, 0, 35)
+status.BackgroundTransparency = 1
+status.Text = "状态: 关闭"
+status.TextColor3 = Color3.fromRGB(255, 100, 100)
+status.Font = Enum.Font.Gotham
+status.TextSize = 14
+status.TextXAlignment = Enum.TextXAlignment.Left
+status.Parent = frame
 
--- 关闭按钮
-local closeButton = Instance.new("TextButton")
-closeButton.Size = UDim2.new(0, 20, 0, 20)
-closeButton.Position = UDim2.new(1, -25, 0, 5)
-closeButton.BackgroundColor3 = Color3.fromRGB(255, 60, 60)
-closeButton.Text = "X"
-closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-closeButton.Font = Enum.Font.GothamBold
-closeButton.TextSize = 12
-closeButton.Parent = titleBar
+local speedText = Instance.new("TextLabel")
+speedText.Size = UDim2.new(1, -20, 0, 25)
+speedText.Position = UDim2.new(0, 10, 0, 60)
+speedText.BackgroundTransparency = 1
+speedText.Text = "速度: " .. currentSpeed
+speedText.TextColor3 = Color3.fromRGB(255, 255, 255)
+speedText.Font = Enum.Font.Gotham
+speedText.TextSize = 14
+speedText.TextXAlignment = Enum.TextXAlignment.Left
+speedText.Parent = frame
 
-local closeCorner = Instance.new("UICorner")
-closeCorner.CornerRadius = UDim.new(0, 4)
-closeCorner.Parent = closeButton
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 100, 0, 30)
+toggleBtn.Position = UDim2.new(0.5, -50, 1, -35)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
+toggleBtn.Text = "开启飞行"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 14
+toggleBtn.Parent = frame
 
--- 速度显示
-local speedLabel = Instance.new("TextLabel")
-speedLabel.Size = UDim2.new(1, -20, 0, 30)
-speedLabel.Position = UDim2.new(0, 10, 0, 40)
-speedLabel.BackgroundTransparency = 1
-speedLabel.Text = "飞行速度: " .. currentSpeed
-speedLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedLabel.Font = Enum.Font.Gotham
-speedLabel.TextSize = 16
-speedLabel.Parent = mainFrame
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 6)
+btnCorner.Parent = toggleBtn
 
--- 速度增加按钮
-local speedUpButton = Instance.new("TextButton")
-speedUpButton.Size = UDim2.new(0, 30, 0, 25)
-speedUpButton.Position = UDim2.new(1, -40, 0, 45)
-speedUpButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-speedUpButton.Text = "+"
-speedUpButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedUpButton.Font = Enum.Font.GothamBold
-speedUpButton.TextSize = 16
-speedUpButton.Parent = mainFrame
-
--- 速度减少按钮
-local speedDownButton = Instance.new("TextButton")
-speedDownButton.Size = UDim2.new(0, 30, 0, 25)
-speedDownButton.Position = UDim2.new(1, -75, 0, 45)
-speedDownButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-speedDownButton.Text = "-"
-speedDownButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-speedDownButton.Font = Enum.Font.GothamBold
-speedDownButton.TextSize = 16
-speedDownButton.Parent = mainFrame
-
--- 飞行状态指示器
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, -20, 0, 30)
-statusLabel.Position = UDim2.new(0, 10, 0, 80)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "飞行状态: 关闭"
-statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextSize = 16
-statusLabel.Parent = mainFrame
-
--- 热键提示
-local hotkeyLabel = Instance.new("TextLabel")
-hotkeyLabel.Size = UDim2.new(1, -20, 0, 40)
-hotkeyLabel.Position = UDim2.new(0, 10, 0, 110)
-hotkeyLabel.BackgroundTransparency = 1
-hotkeyLabel.Text = "热键: F - 飞行开关\nWASD - 移动, Q/E - 升降"
-hotkeyLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
-hotkeyLabel.Font = Enum.Font.Gotham
-hotkeyLabel.TextSize = 12
-hotkeyLabel.TextXAlignment = Enum.TextXAlignment.Left
-hotkeyLabel.Parent = mainFrame
-
--- 开关按钮
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(0, 120, 0, 35)
-toggleButton.Position = UDim2.new(0.5, -60, 1, -45)
-toggleButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-toggleButton.Text = "开启飞行"
-toggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-toggleButton.Font = Enum.Font.GothamSemibold
-toggleButton.TextSize = 14
-toggleButton.Parent = mainFrame
-
-local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(0, 6)
-buttonCorner.Parent = toggleButton
-
--- 飞行控制函数
-local function toggleFlight()
-    if not character or not humanoid or not rootPart then
-        warn("角色组件未准备好")
-        return
-    end
+-- 新的飞行系统 - 使用CFrame直接控制位置
+local function startFlying()
+    if flying then return end
     
-    local success, errorMsg = pcall(function()
-        flying = not flying
-        
-        if flying then
-            -- 启用飞行
-            statusLabel.Text = "飞行状态: 开启"
-            statusLabel.TextColor3 = Color3.fromRGB(100, 255, 100)
-            toggleButton.Text = "关闭飞行"
-            toggleButton.BackgroundColor3 = Color3.fromRGB(100, 220, 100)
-            
-            -- 创建BodyVelocity和BodyGyro
-            bodyVelocity = Instance.new("BodyVelocity")
-            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            bodyVelocity.MaxForce = Vector3.new(40000, 40000, 40000) -- 增加力量
-            bodyVelocity.P = 1000
-            bodyVelocity.Parent = rootPart
-            
-            bodyGyro = Instance.new("BodyGyro")
-            bodyGyro.D = 100
-            bodyGyro.P = 2000
-            bodyGyro.MaxTorque = Vector3.new(40000, 40000, 40000)
-            bodyGyro.CFrame = rootPart.CFrame
-            bodyGyro.Parent = rootPart
-            
-            humanoid.PlatformStand = true
-            
-            -- 通知用户
-            StarterGui:SetCore("SendNotification", {
-                Title = "飞行模式",
-                Text = "飞行已开启！使用WASD移动，QE升降",
-                Duration = 3
-            })
-            
-        else
-            -- 禁用飞行
-            statusLabel.Text = "飞行状态: 关闭"
-            statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-            toggleButton.Text = "开启飞行"
-            toggleButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-            
-            humanoid.PlatformStand = false
-            
-            if bodyVelocity then
-                bodyVelocity:Destroy()
-                bodyVelocity = nil
-            end
-            
-            if bodyGyro then
-                bodyGyro:Destroy()
-                bodyGyro = nil
-            end
-            
-            StarterGui:SetCore("SendNotification", {
-                Title = "飞行模式",
-                Text = "飞行已关闭",
-                Duration = 2
-            })
-        end
-    end)
+    flying = true
+    status.Text = "状态: 飞行中"
+    status.TextColor3 = Color3.fromRGB(100, 255, 100)
+    toggleBtn.Text = "关闭飞行"
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(100, 220, 100)
     
-    if not success then
-        warn("飞行切换失败: " .. tostring(errorMsg))
-        flying = false
-        statusLabel.Text = "飞行状态: 错误"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 200, 0)
-    end
-end
-
--- 更新飞行速度
-local function updateSpeed(newSpeed)
-    currentSpeed = math.clamp(newSpeed, 10, 200)
-    speedLabel.Text = "飞行速度: " .. currentSpeed
-end
-
--- 飞行移动函数 - 优化版
-local function fly()
-    if not flying or not bodyVelocity or not bodyGyro then return end
-    if not character or not rootPart then return end
+    humanoid.PlatformStand = true
     
-    local success, errorMsg = pcall(function()
-        -- 更新BodyGyro的朝向以跟随相机，但保持稳定
-        local camera = workspace.CurrentCamera
-        if camera then
-            local camCF = camera.CFrame
-            local lookVector = camCF.LookVector
-            local newCF = CFrame.new(rootPart.Position, rootPart.Position + Vector3.new(lookVector.X, 0, lookVector.Z))
-            bodyGyro.CFrame = newCF
+    -- 保存初始位置和速度
+    local startPosition = rootPart.Position
+    local velocity = Vector3.new(0, 0, 0)
+    
+    -- 飞行主循环
+    flightConnection = RunService.Heartbeat:Connect(function(delta)
+        if not flying or not character or not rootPart then
+            return
         end
         
         local direction = Vector3.new(0, 0, 0)
+        local camera = workspace.CurrentCamera
         
-        -- 前后移动 (W/S)
+        -- 获取输入方向
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            direction = direction + (workspace.CurrentCamera.CFrame.LookVector * Vector3.new(1, 0, 1))
+            local lookVector = camera.CFrame.LookVector
+            direction = direction + Vector3.new(lookVector.X, 0, lookVector.Z).Unit
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            direction = direction - (workspace.CurrentCamera.CFrame.LookVector * Vector3.new(1, 0, 1))
+            local lookVector = camera.CFrame.LookVector
+            direction = direction - Vector3.new(lookVector.X, 0, lookVector.Z).Unit
         end
-        
-        -- 左右移动 (A/D)
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            direction = direction - workspace.CurrentCamera.CFrame.RightVector
+            direction = direction - camera.CFrame.RightVector
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            direction = direction + workspace.CurrentCamera.CFrame.RightVector
+            direction = direction + camera.CFrame.RightVector
         end
-        
-        -- 上升/下降 (E/Q)
         if UserInputService:IsKeyDown(Enum.KeyCode.E) then
             direction = direction + Vector3.new(0, 1, 0)
         end
@@ -299,129 +141,82 @@ local function fly()
             direction = direction + Vector3.new(0, -1, 0)
         end
         
-        -- 应用速度
+        -- 应用移动
         if direction.Magnitude > 0 then
-            local moveDirection = direction.Unit * currentSpeed
-            bodyVelocity.Velocity = Vector3.new(moveDirection.X, moveDirection.Y, moveDirection.Z)
-        else
-            bodyVelocity.Velocity = Vector3.new(0, 0, 0)
+            local moveDirection = direction.Unit * currentSpeed * delta * 60
+            local newPosition = rootPart.Position + moveDirection
+            
+            -- 使用CFrame直接设置位置
+            rootPart.CFrame = CFrame.new(newPosition) * CFrame.Angles(0, camera.CFrame.Y, 0)
         end
     end)
-    
-    if not success then
-        warn("飞行控制错误: " .. tostring(errorMsg))
-    end
 end
 
--- 连接事件
-toggleButton.MouseButton1Click:Connect(toggleFlight)
-
-speedUpButton.MouseButton1Click:Connect(function()
-    updateSpeed(currentSpeed + 10)
-end)
-
-speedDownButton.MouseButton1Click:Connect(function()
-    updateSpeed(currentSpeed - 10)
-end)
-
-closeButton.MouseButton1Click:Connect(function()
-    screenGui:Destroy()
-    if flying then
-        toggleFlight()
-    end
-end)
-
--- 飞行热键 (F键切换飞行)
-local inputConnection
-inputConnection = UserInputService.InputBegan:Connect(function(input, gameProcessed)
-    if gameProcessed then return end
+local function stopFlying()
+    if not flying then return end
     
-    if input.KeyCode == Enum.KeyCode.F then
-        toggleFlight()
-    end
-end)
-
--- 每帧更新飞行
-local flightConnection
-flightConnection = RunService.Heartbeat:Connect(fly)
-
--- 角色重生处理
-player.CharacterAdded:Connect(function(newCharacter)
-    local success, errorMsg = pcall(function()
-        -- 等待新角色完全加载
-        character = newCharacter
-        humanoid = character:WaitForChild("Humanoid")
-        rootPart = character:WaitForChild("HumanoidRootPart")
-        
-        -- 确保角色完全加载
-        repeat
-            RunService.Heartbeat:Wait()
-        until rootPart.Position.Magnitude > 0 and humanoid.Health > 0
-        
-        flying = false
-        statusLabel.Text = "飞行状态: 关闭"
-        statusLabel.TextColor3 = Color3.fromRGB(255, 100, 100)
-        toggleButton.Text = "开启飞行"
-        toggleButton.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
-        
-        if bodyVelocity then
-            bodyVelocity:Destroy()
-            bodyVelocity = nil
-        end
-        
-        if bodyGyro then
-            bodyGyro:Destroy()
-            bodyGyro = nil
-        end
-    end)
+    flying = false
+    status.Text = "状态: 关闭"
+    status.TextColor3 = Color3.fromRGB(255, 100, 100)
+    toggleBtn.Text = "开启飞行"
+    toggleBtn.BackgroundColor3 = Color3.fromRGB(220, 60, 60)
     
-    if not success then
-        warn("角色重生处理失败: " .. tostring(errorMsg))
-    end
-end)
-
--- 脚本卸载时清理
-local function cleanup()
-    if inputConnection then
-        inputConnection:Disconnect()
-        inputConnection = nil
-    end
+    humanoid.PlatformStand = false
     
     if flightConnection then
         flightConnection:Disconnect()
         flightConnection = nil
     end
-    
-    if bodyVelocity then
-        bodyVelocity:Destroy()
-        bodyVelocity = nil
-    end
-    
-    if bodyGyro then
-        bodyGyro:Destroy()
-        bodyGyro = nil
-    end
-    
-    if screenGui then
-        screenGui:Destroy()
-        screenGui = nil
+end
+
+-- 切换飞行
+local function toggleFlight()
+    if flying then
+        stopFlying()
+    else
+        startFlying()
     end
 end
 
+-- 速度控制
+local function changeSpeed(amount)
+    currentSpeed = math.clamp(currentSpeed + amount, 10, 200)
+    speedText.Text = "速度: " .. currentSpeed
+end
+
+-- 连接事件
+toggleBtn.MouseButton1Click:Connect(toggleFlight)
+
+-- 键盘控制
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.KeyCode == Enum.KeyCode.F then
+        toggleFlight()
+    elseif input.KeyCode == Enum.KeyCode.Equals then
+        changeSpeed(10)
+    elseif input.KeyCode == Enum.KeyCode.Minus then
+        changeSpeed(-10)
+    end
+end)
+
+-- 角色重生处理
+player.CharacterAdded:Connect(function(newCharacter)
+    character = newCharacter
+    humanoid = character:WaitForChild("Humanoid")
+    rootPart = character:WaitForChild("HumanoidRootPart")
+    
+    stopFlying()
+end)
+
+-- 清理
 game:GetService("Players").PlayerRemoving:Connect(function(leavingPlayer)
     if leavingPlayer == player then
-        cleanup()
+        stopFlying()
+        if screenGui then
+            screenGui:Destroy()
+        end
     end
 end)
 
--- 防卡死机制：5秒后自动清理无效实例
-delay(5, function()
-    if bodyVelocity and not bodyVelocity.Parent then
-        bodyVelocity = nil
-    end
-    if bodyGyro and not bodyGyro.Parent then
-        bodyGyro = nil
-    end
-end)
-
-warn("稳定版飞行脚本加载成功！使用F键切换飞行，GUI可拖动。")
+print("飞行脚本加载成功！按F切换飞行，WASD移动，QE升降，+/-调整速度")
