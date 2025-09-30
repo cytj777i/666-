@@ -1,5 +1,5 @@
 -- Roblox飞行脚本 - 修复版
--- 兼容大多数注入器
+-- 修复了飞行固定无法移动的问题
 
 if not game:IsLoaded() then
     game.Loaded:Wait()
@@ -58,7 +58,7 @@ local titleLabel = Instance.new("TextLabel")
 titleLabel.Size = UDim2.new(1, -10, 1, 0)
 titleLabel.Position = UDim2.new(0, 10, 0, 0)
 titleLabel.BackgroundTransparency = 1
-titleLabel.Text = "飞行控制系统 v2.0"
+titleLabel.Text = "飞行控制系统 v2.1 - 修复版"
 titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 titleLabel.TextXAlignment = Enum.TextXAlignment.Left
 titleLabel.Font = Enum.Font.GothamSemibold
@@ -163,16 +163,18 @@ local function toggleFlight()
             toggleButton.Text = "关闭飞行"
             toggleButton.BackgroundColor3 = Color3.fromRGB(100, 220, 100)
             
-            -- 创建BodyVelocity和BodyGyro
+            -- 修复：创建BodyVelocity和BodyGyro
             bodyVelocity = Instance.new("BodyVelocity")
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
-            bodyVelocity.MaxForce = Vector3.new(4000, 4000, 4000)
+            bodyVelocity.MaxForce = Vector3.new(10000, 10000, 10000) -- 增加力量
+            bodyVelocity.P = 1250  -- 添加P值
             bodyVelocity.Parent = rootPart
             
             bodyGyro = Instance.new("BodyGyro")
             bodyGyro.D = 50
-            bodyGyro.P = 1000
-            bodyGyro.MaxTorque = Vector3.new(0, 0, 0)
+            bodyGyro.P = 3000  -- 增加P值
+            bodyGyro.MaxTorque = Vector3.new(20000, 20000, 20000) -- 修复：设置为足够大的值
+            bodyGyro.CFrame = rootPart.CFrame  -- 设置当前朝向
             bodyGyro.Parent = rootPart
             
             humanoid.PlatformStand = true
@@ -206,31 +208,34 @@ end
 
 -- 更新飞行速度
 local function updateSpeed(newSpeed)
-    currentSpeed = math.clamp(newSpeed, 10, 100)
+    currentSpeed = math.clamp(newSpeed, 10, 200) -- 提高最大速度限制
     speedLabel.Text = "飞行速度: " .. currentSpeed
 end
 
--- 飞行移动函数
+-- 飞行移动函数 - 修复版
 local function fly()
-    if not flying or not bodyVelocity then return end
+    if not flying or not bodyVelocity or not bodyGyro then return end
     
     local success, errorMsg = pcall(function()
+        -- 修复：更新BodyGyro的朝向以跟随相机
+        bodyGyro.CFrame = workspace.CurrentCamera.CFrame
+        
         local direction = Vector3.new(0, 0, 0)
         
         -- 前后移动 (W/S)
         if UserInputService:IsKeyDown(Enum.KeyCode.W) then
-            direction = direction + rootPart.CFrame.LookVector
+            direction = direction + workspace.CurrentCamera.CFrame.LookVector
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.S) then
-            direction = direction - rootPart.CFrame.LookVector
+            direction = direction - workspace.CurrentCamera.CFrame.LookVector
         end
         
         -- 左右移动 (A/D)
         if UserInputService:IsKeyDown(Enum.KeyCode.A) then
-            direction = direction - rootPart.CFrame.RightVector
+            direction = direction - workspace.CurrentCamera.CFrame.RightVector
         end
         if UserInputService:IsKeyDown(Enum.KeyCode.D) then
-            direction = direction + rootPart.CFrame.RightVector
+            direction = direction + workspace.CurrentCamera.CFrame.RightVector
         end
         
         -- 上升/下降 (E/Q)
@@ -241,9 +246,11 @@ local function fly()
             direction = direction + Vector3.new(0, -1, 0)
         end
         
-        -- 应用速度
+        -- 修复：应用速度，保持Y轴稳定
         if direction.Magnitude > 0 then
-            bodyVelocity.Velocity = direction.Unit * currentSpeed
+            local moveDirection = direction.Unit * currentSpeed
+            -- 保持水平移动稳定，防止过度倾斜
+            bodyVelocity.Velocity = Vector3.new(moveDirection.X, moveDirection.Y, moveDirection.Z)
         else
             bodyVelocity.Velocity = Vector3.new(0, 0, 0)
         end
@@ -258,11 +265,11 @@ end
 toggleButton.MouseButton1Click:Connect(toggleFlight)
 
 speedUpButton.MouseButton1Click:Connect(function()
-    updateSpeed(currentSpeed + 5)
+    updateSpeed(currentSpeed + 10)
 end)
 
 speedDownButton.MouseButton1Click:Connect(function()
-    updateSpeed(currentSpeed - 5)
+    updateSpeed(currentSpeed - 10)
 end)
 
 closeButton.MouseButton1Click:Connect(function()
@@ -288,7 +295,7 @@ RunService.Heartbeat:Connect(fly)
 player.CharacterAdded:Connect(function(newCharacter)
     local success, errorMsg = pcall(function()
         character = newCharacter
-        humanoid = character:WaitForChild("Humanoid", 10) -- 10秒超时
+        humanoid = character:WaitForChild("Humanoid", 10)
         rootPart = character:WaitForChild("HumanoidRootPart", 10)
         
         flying = false
@@ -325,4 +332,4 @@ game:GetService("Players").PlayerRemoving:Connect(function(leavingPlayer)
     end
 end)
 
-warn("飞行脚本加载成功！使用F键切换飞行，GUI可拖动。")
+warn("修复版飞行脚本加载成功！使用F键切换飞行，GUI可拖
