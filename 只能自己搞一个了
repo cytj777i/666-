@@ -1,4 +1,4 @@
---使用的脚本没有飞行再用这个                    local main = Instance.new("ScreenGui")  -- 创建主屏幕GUI
+--使用的脚本没有飞行再用这个                              local main = Instance.new("ScreenGui")  -- 创建主屏幕GUI
 local Frame = Instance.new("Frame")  -- 创建主框架
 local up = Instance.new("TextButton")  -- 创建上升按钮
 local down = Instance.new("TextButton")  -- 创建下降按钮
