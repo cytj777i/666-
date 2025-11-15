@@ -1,0 +1,518 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local SoundService = game:GetService("SoundService")
+local StarterGui = game:GetService("StarterGui")
+local HttpService = game:GetService("HttpService")
+local LocalPlayer = Players.LocalPlayer
+
+-- 音效功能
+local function playSound(soundId)
+    local sound = Instance.new("Sound")
+    sound.SoundId = "rbxassetid://" .. soundId
+    sound.Parent = SoundService
+    sound:Play()
+    sound.Ended:Connect(function()
+        sound:Destroy()
+    end)
+end
+
+-- 播放初始音效
+playSound("2865227271")
+
+-- GUI创建 - 缩小尺寸
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "恩师XTTT超级环部件V6"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 280, 0, 380) -- 缩小尺寸
+MainFrame.Position = UDim2.new(0.5, -140, 0.5, -190)
+MainFrame.BorderSizePixel = 0
+MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+MainFrame.Parent = ScreenGui
+
+-- 圆角UI
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 12)
+UICorner.Parent = MainFrame
+
+-- 标题栏
+local TitleBar = Instance.new("Frame")
+TitleBar.Size = UDim2.new(1, 0, 0, 35) -- 缩小标题栏
+TitleBar.Position = UDim2.new(0, 0, 0, 0)
+TitleBar.BackgroundColor3 = Color3.fromRGB(70, 130, 180)
+TitleBar.BorderSizePixel = 0
+TitleBar.Parent = MainFrame
+
+local TitleCorner = Instance.new("UICorner")
+TitleCorner.CornerRadius = UDim.new(0, 12)
+TitleCorner.Parent = TitleBar
+
+-- 标题
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -40, 1, 0)
+Title.Position = UDim2.new(0, 8, 0, 0)
+Title.Text = "恩师XTTT - 超级环 V6"
+Title.TextColor3 = Color3.fromRGB(255, 255, 255)
+Title.BackgroundTransparency = 1
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16 -- 缩小字体
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TitleBar
+
+-- 最小化按钮
+local MinimizeButton = Instance.new("TextButton")
+MinimizeButton.Name = "MinimizeButton"
+MinimizeButton.Size = UDim2.new(0, 18, 0, 18)
+MinimizeButton.Position = UDim2.new(1, -30, 0, 2)
+MinimizeButton.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+MinimizeButton.BorderSizePixel = 0
+MinimizeButton.Text = "-"
+MinimizeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+MinimizeButton.TextSize = 12
+MinimizeButton.Font = Enum.Font.GothamBold
+MinimizeButton.Parent = TitleBar
+
+local MinimizeCorner = Instance.new("UICorner")
+MinimizeCorner.CornerRadius = UDim.new(0, 5)
+MinimizeCorner.Parent = MinimizeButton
+
+-- 开关按钮
+local ToggleButton = Instance.new("TextButton")
+ToggleButton.Size = UDim2.new(0.85, 0, 0, 35) -- 缩小按钮
+ToggleButton.Position = UDim2.new(0.075, 0, 0.11, 0)
+ToggleButton.Text = "🌀 龙卷风关闭"
+ToggleButton.BackgroundColor3 = Color3.fromRGB(220, 20, 60)
+ToggleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+ToggleButton.Font = Enum.Font.Gotham
+ToggleButton.TextSize = 14 -- 缩小字体
+ToggleButton.Parent = MainFrame
+
+local ToggleCorner = Instance.new("UICorner")
+ToggleCorner.CornerRadius = UDim.new(0, 8)
+ToggleCorner.Parent = ToggleButton
+
+-- 配置表
+local config = {
+    radius = 50,
+    height = 100,
+    rotationSpeed = 10,
+    attractionStrength = 1000,
+}
+
+-- 保存和加载功能
+local function saveConfig()
+    local configStr = HttpService:JSONEncode(config)
+    writefile("恩师XTTT_环配置.txt", configStr)
+end
+
+local function loadConfig()
+    if isfile("恩师XTTT_环配置.txt") then
+        local configStr = readfile("恩师XTTT_环配置.txt")
+        config = HttpService:JSONDecode(configStr)
+    end
+end
+loadConfig()
+
+-- 创建控制按钮和文本框的函数 - 紧凑版本
+local function createControl(name, positionY, color, labelText, defaultValue, callback)
+    local ControlFrame = Instance.new("Frame")
+    ControlFrame.Size = UDim2.new(0.85, 0, 0, 70) -- 缩小控制框
+    ControlFrame.Position = UDim2.new(0.075, 0, positionY, 0)
+    ControlFrame.BackgroundTransparency = 1
+    ControlFrame.Parent = MainFrame
+
+    local Display = Instance.new("TextLabel")
+    Display.Size = UDim2.new(1, 0, 0, 20) -- 缩小显示框
+    Display.Position = UDim2.new(0, 0, 0, 0)
+    Display.Text = labelText .. ": " .. defaultValue
+    Display.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
+    Display.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Display.Font = Enum.Font.Gotham
+    Display.TextSize = 12 -- 缩小字体
+    Display.Parent = ControlFrame
+
+    local DisplayCorner = Instance.new("UICorner")
+    DisplayCorner.CornerRadius = UDim.new(0, 4)
+    DisplayCorner.Parent = Display
+
+    local ButtonFrame = Instance.new("Frame")
+    ButtonFrame.Size = UDim2.new(1, 0, 0, 25) -- 缩小按钮框
+    ButtonFrame.Position = UDim2.new(0, 0, 0, 25)
+    ButtonFrame.BackgroundTransparency = 1
+    ButtonFrame.Parent = ControlFrame
+
+    local DecreaseButton = Instance.new("TextButton")
+    DecreaseButton.Size = UDim2.new(0.3, 0, 1, 0)
+    DecreaseButton.Position = UDim2.new(0, 0, 0, 0)
+    DecreaseButton.Text = "➖"
+    DecreaseButton.BackgroundColor3 = color
+    DecreaseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    DecreaseButton.Font = Enum.Font.Gotham
+    DecreaseButton.TextSize = 11 -- 缩小字体
+    DecreaseButton.Parent = ButtonFrame
+
+    local IncreaseButton = Instance.new("TextButton")
+    IncreaseButton.Size = UDim2.new(0.3, 0, 1, 0)
+    IncreaseButton.Position = UDim2.new(0.35, 0, 0, 0)
+    IncreaseButton.Text = "➕"
+    IncreaseButton.BackgroundColor3 = color
+    IncreaseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    IncreaseButton.Font = Enum.Font.Gotham
+    IncreaseButton.TextSize = 11 -- 缩小字体
+    IncreaseButton.Parent = ButtonFrame
+
+    local TextBox = Instance.new("TextBox")
+    TextBox.Size = UDim2.new(0.35, 0, 1, 0)
+    TextBox.Position = UDim2.new(0.65, 0, 0, 0)
+    TextBox.PlaceholderText = "输入数值"
+    TextBox.BackgroundColor3 = Color3.fromRGB(60, 60, 80)
+    TextBox.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TextBox.Font = Enum.Font.Gotham
+    TextBox.TextSize = 11 -- 缩小字体
+    TextBox.Parent = ButtonFrame
+
+    local ButtonCorner = Instance.new("UICorner")
+    ButtonCorner.CornerRadius = UDim.new(0, 4)
+    ButtonCorner.Parent = DecreaseButton
+    ButtonCorner:Clone().Parent = IncreaseButton
+    ButtonCorner:Clone().Parent = TextBox
+
+    DecreaseButton.MouseButton1Click:Connect(function()
+        local value = tonumber(Display.Text:match("%d+"))
+        value = math.max(0, value - 10)
+        Display.Text = labelText .. ": " .. value
+        callback(value)
+        playSound("12221967")
+        saveConfig()
+    end)
+
+    IncreaseButton.MouseButton1Click:Connect(function()
+        local value = tonumber(Display.Text:match("%d+"))
+        value = math.min(10000, value + 10)
+        Display.Text = labelText .. ": " .. value
+        callback(value)
+        playSound("12221967")
+        saveConfig()
+    end)
+
+    TextBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            local newValue = tonumber(TextBox.Text)
+            if newValue then
+                newValue = math.clamp(newValue, 0, 10000)
+                Display.Text = labelText .. ": " .. newValue
+                TextBox.Text = ""
+                callback(newValue)
+                playSound("12221967")
+                saveConfig()
+            else
+                TextBox.Text = ""
+            end
+        end
+    end)
+end
+
+-- 创建控制项 - 调整位置
+createControl("Radius", 0.20, Color3.fromRGB(200, 100, 50), "🌀 半径", config.radius, function(value)
+    config.radius = value
+    saveConfig()
+end)
+
+createControl("Height", 0.32, Color3.fromRGB(150, 80, 180), "📏 高度", config.height, function(value)
+    config.height = value
+    saveConfig()
+end)
+
+createControl("RotationSpeed", 0.44, Color3.fromRGB(50, 150, 200), "⚡ 旋转速度", config.rotationSpeed, function(value)
+    config.rotationSpeed = value
+    saveConfig()
+end)
+
+createControl("AttractionStrength", 0.56, Color3.fromRGB(200, 60, 80), "💫 吸引力", config.attractionStrength, function(value)
+    config.attractionStrength = value
+    saveConfig()
+end)
+
+-- 最小化功能
+local minimized = false
+MinimizeButton.MouseButton1Click:Connect(function()
+    minimized = not minimized
+    if minimized then
+        MainFrame:TweenSize(UDim2.new(0, 280, 0, 35), "Out", "Quad", 0.3, true)
+        MinimizeButton.Text = "+"
+        for _, child in pairs(MainFrame:GetChildren()) do
+            if child:IsA("GuiObject") and child ~= TitleBar then
+                child.Visible = false
+            end
+        end
+    else
+        MainFrame:TweenSize(UDim2.new(0, 280, 0, 380), "Out", "Quad", 0.3, true)
+        MinimizeButton.Text = "-"
+        for _, child in pairs(MainFrame:GetChildren()) do
+            if child:IsA("GuiObject") then
+                child.Visible = true
+            end
+        end
+    end
+    playSound("12221967")
+end)
+
+-- 使GUI可拖动
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    MainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+
+TitleBar.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        dragging = true
+        dragStart = input.Position
+        startPos = MainFrame.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+TitleBar.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
+-- 功能按钮创建函数 - 紧凑版本
+local function createFeatureButton(name, position, color, text, callback)
+    local button = Instance.new("TextButton")
+    button.Size = UDim2.new(0.42, 0, 0, 32) -- 缩小按钮
+    button.Position = position
+    button.Text = text
+    button.BackgroundColor3 = color
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.Font = Enum.Font.Gotham
+    button.TextSize = 12 -- 缩小字体
+    button.Parent = MainFrame
+    
+    local buttonCorner = Instance.new("UICorner")
+    buttonCorner.CornerRadius = UDim.new(0, 6)
+    buttonCorner.Parent = button
+    
+    button.MouseButton1Click:Connect(function()
+        callback()
+        playSound("12221967")
+    end)
+    
+    return button
+end
+
+-- 创建功能按钮 - 调整位置
+createFeatureButton("Fly", UDim2.new(0.04, 0, 0.70, 0), Color3.fromRGB(65, 105, 225), "🕊️ 飞行", function()
+    loadstring("\108\111\97\100\115\116\114\105\110\103\40\103\97\109\101\58\72\116\116\112\71\101\116\40\40\39\104\116\116\112\115\58\47\47\103\105\115\116\46\103\105\116\104\117\98\117\115\101\114\99\111\110\116\101\110\116\46\99\111\109\47\109\101\111\122\111\110\101\89\84\47\98\102\48\51\55\100\102\102\57\102\48\97\55\48\48\49\55\51\48\52\100\100\100\54\55\102\100\99\100\51\55\48\47\114\97\119\47\101\49\52\101\55\52\102\52\50\53\98\48\54\48\100\102\53\50\51\51\52\51\99\102\51\48\98\55\56\55\48\55\52\101\98\51\99\53\100\50\47\97\114\99\101\117\115\37\50\53\50\48\120\37\50\53\50\48\102\108\121\37\50\53\50\48\50\37\50\53\50\48\111\98\102\108\117\99\97\116\111\114\39\41\44\116\114\117\101\41\41\40\41\10\10")()
+    StarterGui:SetCore("SendNotification", {
+        Title = "飞行模式",
+        Text = "飞行脚本已加载",
+        Duration = 3
+    })
+end)
+
+createFeatureButton("InfYield", UDim2.new(0.54, 0, 0.70, 0), Color3.fromRGB(0, 206, 209), "⚡ 无限Yield", function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source'))()
+end)
+
+createFeatureButton("Admin", UDim2.new(0.04, 0, 0.82, 0), Color3.fromRGB(139, 0, 0), "👑 管理员", function()
+    loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-Nameless-Admin-FE-11243"))()
+end)
+
+createFeatureButton("FPS", UDim2.new(0.54, 0, 0.82, 0), Color3.fromRGB(128, 0, 128), "🎮 FPS提升", function()
+    loadstring(game:HttpGet("https://pastebin.com/raw/ySHJdZpb",true))()
+end)
+
+createFeatureButton("Credits", UDim2.new(0.29, 0, 0.94, 0), Color3.fromRGB(210, 105, 30), "🙏 感谢恩师", function()
+    StarterGui:SetCore("SendNotification", {
+        Title = "恩师XTTT",
+        Text = "感谢您的教导与指引！",
+        Duration = 5
+    })
+end)
+
+-- 环部件系统
+local Workspace = game:GetService("Workspace")
+local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
+local Folder = Instance.new("Folder", Workspace)
+Folder.Name = "恩师XTTT_环系统"
+
+local Part = Instance.new("Part", Folder)
+local Attachment1 = Instance.new("Attachment", Part)
+Part.Anchored = true
+Part.CanCollide = false
+Part.Transparency = 1
+
+if not getgenv().Network then
+    getgenv().Network = {
+        BaseParts = {},
+        Velocity = Vector3.new(14.46262424, 14.46262424, 14.46262424)
+    }
+    
+    Network.RetainPart = function(Part)
+        if typeof(Part) == "Instance" and Part:IsA("BasePart") and Part:IsDescendantOf(Workspace) then
+            table.insert(Network.BaseParts, Part)
+            Part.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0, 0, 0)
+            Part.CanCollide = false
+        end
+    end
+    
+    local function EnablePartControl()
+        LocalPlayer.ReplicationFocus = Workspace
+        RunService.Heartbeat:Connect(function()
+            sethiddenproperty(LocalPlayer, "SimulationRadius", math.huge)
+            for _, Part in pairs(Network.BaseParts) do
+                if Part:IsDescendantOf(Workspace) then
+                    Part.Velocity = Network.Velocity
+                end
+            end
+        end)
+    end
+    EnablePartControl()
+end
+
+local function ForcePart(v)
+    if v:IsA("Part") and not v.Anchored and not v.Parent:FindFirstChild("Humanoid") and not v.Parent:FindFirstChild("Head") and v.Name ~= "Handle" then
+        for _, x in next, v:GetChildren() do
+            if x:IsA("BodyAngularVelocity") or x:IsA("BodyForce") or x:IsA("BodyGyro") or x:IsA("BodyPosition") or x:IsA("BodyThrust") or x:IsA("BodyVelocity") or x:IsA("RocketPropulsion") then
+                x:Destroy()
+            end
+        end
+        
+        if v:FindFirstChild("Attachment") then v:FindFirstChild("Attachment"):Destroy() end
+        if v:FindFirstChild("AlignPosition") then v:FindFirstChild("AlignPosition"):Destroy() end
+        if v:FindFirstChild("Torque") then v:FindFirstChild("Torque"):Destroy() end
+        
+        v.CanCollide = false
+        
+        local Torque = Instance.new("Torque", v)
+        Torque.Torque = Vector3.new(100000, 100000, 100000)
+        
+        local AlignPosition = Instance.new("AlignPosition", v)
+        local Attachment2 = Instance.new("Attachment", v)
+        
+        Torque.Attachment0 = Attachment2
+        AlignPosition.MaxForce = 9999999999999999999999999999999
+        AlignPosition.MaxVelocity = math.huge
+        AlignPosition.Responsiveness = 200
+        AlignPosition.Attachment0 = Attachment2
+        AlignPosition.Attachment1 = Attachment1
+    end
+end
+
+local ringPartsEnabled = false
+
+local function RetainPart(Part)
+    if Part:IsA("BasePart") and not Part.Anchored and Part:IsDescendantOf(workspace) then
+        if Part.Parent == LocalPlayer.Character or Part:IsDescendantOf(LocalPlayer.Character) then
+            return false
+        end
+        Part.CustomPhysicalProperties = PhysicalProperties.new(0, 0, 0, 0, 0)
+        Part.CanCollide = false
+        return true
+    end
+    return false
+end
+
+local parts = {}
+local function addPart(part)
+    if RetainPart(part) then
+        if not table.find(parts, part) then
+            table.insert(parts, part)
+        end
+    end
+end
+
+local function removePart(part)
+    local index = table.find(parts, part)
+    if index then
+        table.remove(parts, index)
+    end
+end
+
+for _, part in pairs(workspace:GetDescendants()) do
+    addPart(part)
+end
+
+workspace.DescendantAdded:Connect(addPart)
+workspace.DescendantRemoving:Connect(removePart)
+
+RunService.Heartbeat:Connect(function()
+    if not ringPartsEnabled then return end
+    
+    local humanoidRootPart = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if humanoidRootPart then
+        local tornadoCenter = humanoidRootPart.Position
+        
+        for _, part in pairs(parts) do
+            if part.Parent and not part.Anchored then
+                local pos = part.Position
+                local distance = (Vector3.new(pos.X, tornadoCenter.Y, pos.Z) - tornadoCenter).Magnitude
+                local angle = math.atan2(pos.Z - tornadoCenter.Z, pos.X - tornadoCenter.X)
+                local newAngle = angle + math.rad(config.rotationSpeed)
+                
+                local targetPos = Vector3.new(
+                    tornadoCenter.X + math.cos(newAngle) * math.min(config.radius, distance),
+                    tornadoCenter.Y + (config.height * (math.abs(math.sin((pos.Y - tornadoCenter.Y) / config.height)))),
+                    tornadoCenter.Z + math.sin(newAngle) * math.min(config.radius, distance)
+                )
+                
+                local directionToTarget = (targetPos - part.Position).unit
+                part.Velocity = directionToTarget * config.attractionStrength
+            end
+        end
+    end
+end)
+
+-- 开关按钮功能
+ToggleButton.MouseButton1Click:Connect(function()
+    ringPartsEnabled = not ringPartsEnabled
+    ToggleButton.Text = ringPartsEnabled and "🌀 龙卷风开启" or "🌀 龙卷风关闭"
+    ToggleButton.BackgroundColor3 = ringPartsEnabled and Color3.fromRGB(50, 205, 50) or Color3.fromRGB(220, 20, 60)
+    playSound("12221967")
+end)
+
+-- 发送通知
+StarterGui:SetCore("SendNotification", {
+    Title = "恩师XTTT",
+    Text = "感谢使用超级环部件V6！",
+    Duration = 5
+})
+
+-- 背景光效
+local hue = 0
+RunService.Heartbeat:Connect(function()
+    hue = (hue + 0.005) % 1
+    TitleBar.BackgroundColor3 = Color3.fromHSV(hue, 0.8, 0.8)
+end)
+
+-- 添加版本信息
+local VersionLabel = Instance.new("TextLabel")
+VersionLabel.Size = UDim2.new(1, 0, 0, 16)
+VersionLabel.Position = UDim2.new(0, 0, 1, -16)
+VersionLabel.Text = "恩师XTTT 超级环 V6 - 紧凑版"
+VersionLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+VersionLabel.BackgroundTransparency = 1
+VersionLabel.Font = Enum.Font.Gotham
+VersionLabel.TextSize = 10
+VersionLabel.Parent = MainFrame
+
+print("恩师XTTT 超级环部件 V6 紧凑版加载完成！")
